@@ -1,0 +1,554 @@
+import { useMemo, useState, useEffect, useRef } from 'react';
+import PageShell from '../components/PageShell';
+import { mockDiscordUser } from '../lib/mockUser';
+import { placeBet, settleGame } from '../lib/api';
+
+const LEVELS = 25;
+const RTP = 0.98;
+
+// تم تعديل النظام عشان يتناسب مع "خيار واحد" (بلاعة واحدة).
+// الصعوبة الحين تحدد نسبة النجاة (Win Chance) في كل خطوة.
+const MODE_CONFIG = {
+  easy: { label: 'Easy', winChance: 0.75, factor: 1.333 },
+  medium: { label: 'Medium', winChance: 0.666, factor: 1.5 },
+  hard: { label: 'Hard', winChance: 0.50, factor: 2.0 },
+  expert: { label: 'Expert', winChance: 0.333, factor: 3.0 },
+  master: { label: 'Master', winChance: 0.25, factor: 4.0 }
+};
+
+function formatMoney(val) {
+  if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';
+  return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatMult(val) {
+  if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';
+  return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function getMultiplier(modeKey, clearedLevels) {
+  if (clearedLevels <= 0) return 1;
+  const mode = MODE_CONFIG[modeKey];
+  const value = RTP * Math.pow(mode.factor, clearedLevels);
+  
+  if (value >= 1e6) return Math.floor(value);
+  if (value >= 1000) return Math.round(value);
+  if (value >= 100) return Number(value.toFixed(1));
+  if (value >= 10) return Number(value.toFixed(2));
+  return Number(value.toFixed(3));
+}
+
+export default function ChickenCrossPage() {
+  const [bet, setBet] = useState('10');
+  const [mode, setMode] = useState('medium');
+  const [road, setRoad] = useState(() => Array.from({ length: LEVELS }, () => ({ resolved: false, won: null })));
+  const [phase, setPhase] = useState('idle'); // idle | playing | lost | cashed | completed
+  const [currentStep, setCurrentStep] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('Choose your difficulty and press the manhole to cross.');
+  const [lastPayout, setLastPayout] = useState(0);
+  const [history, setHistory] = useState([]);
+
+  const modeConfig = MODE_CONFIG[mode];
+
+  const currentMultiplier = useMemo(() => {
+    return currentStep > 0 ? getMultiplier(mode, currentStep) : 0;
+  }, [mode, currentStep]);
+
+  const currentPayout = useMemo(() => {
+    return Math.floor((Number(bet) || 0) * currentMultiplier);
+  }, [bet, currentMultiplier]);
+
+  const nextPayout = useMemo(() => {
+    return Math.floor((Number(bet) || 0) * getMultiplier(mode, currentStep + 1));
+  }, [bet, mode, currentStep]);
+
+  function multiplyBet() {
+    setBet(String((Number(bet) || 0) * 2));
+  }
+
+  function divideBet() {
+    const newBet = (Number(bet) || 0) / 2;
+    setBet(String(newBet < 1 ? 1 : newBet));
+  }
+
+  function resetGame(nextMode = mode) {
+    if (phase === 'playing' || busy) return;
+    setRoad(Array.from({ length: LEVELS }, () => ({ resolved: false, won: null })));
+    setPhase('idle');
+    setCurrentStep(0);
+    setBusy(false);
+    setMessage('Choose your difficulty and press the manhole to cross.');
+    setLastPayout(0);
+  }
+
+  async function startRound() {
+    const amount = Number(bet);
+
+    if (busy) return;
+    if (!amount || amount <= 0) {
+      setMessage('Enter a valid bet amount.');
+      return;
+    }
+
+    setBusy(true);
+    setMessage('Starting round...');
+
+    const betRes = await placeBet(mockDiscordUser.id, amount, 'chickenCross', `chicken cross ${mode}`);
+
+    if (!betRes.ok) {
+      setBusy(false);
+      setMessage(betRes.error || 'Bet failed');
+      return;
+    }
+
+    setRoad(Array.from({ length: LEVELS }, () => ({ resolved: false, won: null })));
+    setPhase('playing');
+    setCurrentStep(0);
+    setLastPayout(0);
+    setMessage('Round started. Click the manhole!');
+    setBusy(false);
+  }
+
+  async function finalizeWin(payout, reason, levelsCleared, completed = false) {
+    setBusy(true);
+    const settleRes = await settleGame(mockDiscordUser.id, payout, 'chickenCross', reason);
+
+    if (!settleRes.ok) {
+      setBusy(false);
+      setMessage(settleRes.error || 'Failed to settle payout.');
+      return false;
+    }
+
+    setPhase(completed ? 'completed' : 'cashed');
+    setLastPayout(payout);
+    setHistory((prev) => [
+      { type: 'win', payout, levels: levelsCleared, multiplier: getMultiplier(mode, levelsCleared), mode },
+      ...prev
+    ].slice(0, 8));
+    setBusy(false);
+    return true;
+  }
+
+  async function crossLane() {
+    if (busy || phase !== 'playing' || currentStep >= LEVELS) return;
+    
+    setBusy(true);
+
+    // الرول (حظك): هل تنجو أو تندهس بناءً على نسبة الصعوبة
+    const isSafe = Math.random() < modeConfig.winChance;
+
+    // 1. تحديث البورد كأنك ضغطت البلاعة
+    const updatedRoad = [...road];
+    updatedRoad[currentStep] = { resolved: true, won: isSafe };
+    setRoad(updatedRoad);
+
+    // 2. الدجاجة تنط للمكان الجديد (تحتاج وقت عشان يخلص الانميشن)
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    if (!isSafe) {
+      // 3. لو خسرت، تجيك سيارة تدهسك 
+      setPhase('lost');
+      setBusy(false);
+      setLastPayout(0);
+      setMessage('Splat! The chicken got hit. Round lost.');
+      setHistory((prev) => [
+        { type: 'lose', payout: 0, levels: currentStep, multiplier: 0, mode },
+        ...prev
+      ].slice(0, 8));
+      return;
+    }
+
+    // 4. لو فزت، ينزل حاجز وتكمل
+    const cleared = currentStep + 1;
+    const completed = cleared >= LEVELS;
+
+    if (completed) {
+      const finalMultiplier = getMultiplier(mode, cleared);
+      const payout = Math.floor((Number(bet) || 0) * finalMultiplier);
+      setCurrentStep(cleared);
+      setMessage(`Road crossed completely! Settling $${formatMoney(payout)}...`);
+
+      const ok = await finalizeWin(payout, `chicken cross completed x${finalMultiplier}`, cleared, true);
+      if (ok) setMessage(`Epic win! Payout: $${formatMoney(payout)}`);
+      return;
+    }
+
+    setCurrentStep(cleared);
+    setBusy(false);
+    setMessage(`Safe! Multiplier is now x${formatMult(getMultiplier(mode, cleared + 1))}.`);
+  }
+
+  async function cashOut() {
+    if (busy || phase !== 'playing' || currentStep <= 0) return;
+
+    const payout = Math.floor((Number(bet) || 0) * currentMultiplier);
+    setMessage(`Cashing out $${formatMoney(payout)}...`);
+
+    const ok = await finalizeWin(payout, `chicken cross cashout x${currentMultiplier}`, currentStep, false);
+    if (ok) setMessage(`Cashed out successfully: $${formatMoney(payout)}`);
+  }
+
+  // حساب حركة الشوارع (عرض 5 مسارات فقط)
+  // عرض المسار الواحد 140px
+  const shiftX = Math.max(0, currentStep - 2) * 140; 
+  
+  // حساب مكان الدجاجة
+  const chickenLane = phase === 'idle' ? -1 : (phase === 'lost' ? currentStep : currentStep - 1);
+  const chickenX = chickenLane * 140 + 70 - 25; // 70 مركز الشارع، 25 نص عرض الدجاجة
+
+  return (
+    <PageShell title="Chicken Cross">
+      <style>{`
+        @keyframes ambientDriveDown {
+          0% { top: -100px; }
+          100% { top: 500px; }
+        }
+        @keyframes ambientDriveUp {
+          0% { top: 500px; }
+          100% { top: -100px; }
+        }
+        @keyframes killerSmash {
+          0% { top: -100px; }
+          40% { top: 180px; }
+          100% { top: 600px; }
+        }
+        
+        .ambient-car-down {
+          position: absolute;
+          left: 45px;
+          font-size: 50px;
+          animation: ambientDriveDown 2s linear infinite;
+          opacity: 0.15;
+          z-index: 1;
+          pointer-events: none;
+        }
+        .ambient-car-up {
+          position: absolute;
+          left: 45px;
+          font-size: 50px;
+          animation: ambientDriveUp 2.5s linear infinite;
+          opacity: 0.15;
+          z-index: 1;
+          pointer-events: none;
+        }
+        
+        .killer-car {
+          position: absolute;
+          left: 35px;
+          font-size: 70px;
+          animation: killerSmash 0.5s linear forwards;
+          z-index: 20;
+          pointer-events: none;
+        }
+
+        .chicken {
+          position: absolute;
+          top: 175px; /* مركز الشارع العمودي */
+          width: 50px;
+          height: 50px;
+          font-size: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          z-index: 15;
+          pointer-events: none;
+        }
+
+        .chicken-splat {
+          transform: scale(1.3) scaleY(0.2) translateY(80px);
+          filter: drop-shadow(0 0 15px #ef4444);
+          opacity: 0.85;
+          transition: all 0.2s ease;
+        }
+      `}</style>
+      
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '400px 1fr',
+          gap: 24
+        }}
+      >
+        {/* Controls Section */}
+        <div
+          style={{
+            background: '#1a2c38',
+            borderRadius: 24,
+            padding: 20,
+            border: '1px solid rgba(255,255,255,0.06)',
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 18
+            }}
+          >
+            <div style={{ fontSize: 24, fontWeight: 900 }}>Manual</div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                color:
+                  phase === 'playing' ? '#00e701' : phase === 'lost' ? '#ff8d8d' : phase === 'cashed' || phase === 'completed' ? '#7df9a6' : '#b1bad3'
+              }}
+            >
+              {phase === 'playing' ? 'CROSSING' : phase === 'lost' ? 'SPLAT' : phase === 'cashed' ? 'CASHED OUT' : phase === 'completed' ? 'SURVIVED' : 'READY'}
+            </div>
+          </div>
+
+          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+            <input
+              type="number"
+              min="1"
+              value={bet}
+              onChange={(e) => setBet(e.target.value)}
+              disabled={phase === 'playing' || busy}
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <button onClick={divideBet} disabled={phase === 'playing' || busy} style={actionBtn}>1/2</button>
+            <button onClick={multiplyBet} disabled={phase === 'playing' || busy} style={actionBtn}>2x</button>
+          </div>
+
+          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Difficulty</div>
+          <select
+            value={mode}
+            onChange={(e) => {
+              setMode(e.target.value);
+              resetGame(e.target.value);
+            }}
+            disabled={phase === 'playing' || busy}
+            style={{ ...selectStyle, marginBottom: 18, opacity: phase === 'playing' || busy ? 0.6 : 1 }}
+          >
+            {Object.entries(MODE_CONFIG).map(([key, cfg]) => (
+              <option key={key} value={key}>{cfg.label}</option>
+            ))}
+          </select>
+
+          <button
+            onClick={startRound}
+            disabled={phase === 'playing' || busy}
+            style={{ ...primaryBtn, opacity: phase === 'playing' || busy ? 0.65 : 1 }}
+          >
+            {busy && phase !== 'playing' ? 'Starting...' : phase === 'playing' ? 'Game Running' : 'Bet'}
+          </button>
+
+          <button
+            onClick={cashOut}
+            disabled={phase !== 'playing' || currentStep <= 0 || busy}
+            style={{ ...cashoutBtn, opacity: phase !== 'playing' || currentStep <= 0 || busy ? 0.6 : 1 }}
+          >
+            {busy && phase === 'playing' ? 'Processing...' : `Cash Out $${formatMoney(currentPayout)}`}
+          </button>
+
+          <div style={{ marginTop: 16, color: phase === 'lost' ? '#ff8d8d' : phase === 'cashed' || phase === 'completed' ? '#7df9a6' : '#b1bad3', minHeight: 22, lineHeight: 1.6 }}>
+            {message}
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Last Results</div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {history.length === 0 ? (
+                <div style={{ background: '#132634', borderRadius: 14, padding: 14, color: '#b1bad3' }}>No crossings yet.</div>
+              ) : (
+                history.map((item, index) => (
+                  <div key={`${item.type}-${item.levels}-${index}`} style={{ background: '#132634', borderRadius: 14, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, color: item.type === 'win' ? '#00e701' : 'white' }}>
+                        {item.type === 'lose' ? 'Hit' : `x${formatMult(item.multiplier)}`}
+                      </div>
+                      <div style={{ color: '#b1bad3', fontSize: 13, marginTop: 4 }}>{item.mode.toUpperCase()} · Step {item.levels}</div>
+                    </div>
+                    <div style={{ fontWeight: 900 }}>${formatMoney(item.payout)}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Board Section */}
+        <div
+          style={{
+            background: '#1a2c38',
+            borderRadius: 24,
+            padding: 24,
+            border: '1px solid rgba(255,255,255,0.06)',
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* Horizontal Summary */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+            <SummaryItem label="Step" value={`${currentStep}/${LEVELS}`} />
+            <SummaryItem label="Multiplier" value={`x${formatMult(currentMultiplier)}`} accent="#00e701" />
+            <SummaryItem label="Payout" value={`$${formatMoney(currentPayout)}`} />
+          </div>
+
+          {/* Road Viewport (Fixed to 5 lanes approx -> 700px wide) */}
+          <div
+            style={{
+              background: '#22283e', // الأسفلت
+              borderRadius: 22,
+              border: '1px solid rgba(255,255,255,0.05)',
+              height: 400,
+              width: '100%',
+              maxWidth: 700,
+              margin: '0 auto',
+              overflow: 'hidden', // هذي اللي تخفي الشوارع السابقة والقادمة
+              boxShadow: 'inset 0 10px 40px rgba(0,0,0,0.5)',
+              position: 'relative'
+            }}
+          >
+            {/* Sliding Container */}
+            <div
+              style={{
+                display: 'flex',
+                height: '100%',
+                width: LEVELS * 140, // حجم الشوارع كلها
+                transform: `translateX(-${shiftX}px)`,
+                transition: 'transform 0.4s ease',
+                position: 'relative'
+              }}
+            >
+              
+              {/* الدجاجة */}
+              <div className={`chicken ${phase === 'lost' ? 'chicken-splat' : ''}`} style={{ left: chickenX }}>
+                🐔
+              </div>
+
+              {/* الشوارع */}
+              {road.map((col, i) => {
+                const isCurrentLane = phase === 'playing' && i === currentStep;
+                const isFuture = i > currentStep;
+                
+                // السيارات المستمرة في الشوارع الثانية
+                const showAmbientCar = (i !== currentStep && i !== currentStep - 1);
+                const carDirection = i % 2 === 0 ? 'down' : 'up';
+                const carDelay = (Math.random() * 2).toFixed(2);
+                
+                // السيارة القاتلة
+                const isKillerCar = phase === 'lost' && i === currentStep;
+
+                // البلاعة
+                let manholeBg = '#1a2235';
+                let manholeBorder = '2px solid rgba(255,255,255,0.1)';
+                let content = `$${formatMoney((Number(bet) || 0) * getMultiplier(mode, i + 1))}`;
+                let shadow = 'none';
+
+                if (col.resolved) {
+                  manholeBg = 'radial-gradient(circle, #fcd34d 0%, #d97706 100%)'; // ذهبية
+                  manholeBorder = '2px solid #fbbf24';
+                  content = ''; 
+                  shadow = '0 4px 15px rgba(217,119,6,0.5)';
+                } else if (isCurrentLane) {
+                  manholeBg = 'rgba(0,231,1,0.1)';
+                  manholeBorder = '2px solid rgba(0,231,1,0.6)';
+                  shadow = '0 0 20px rgba(0,231,1,0.2)';
+                }
+
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      width: 140,
+                      height: '100%',
+                      borderRight: i === LEVELS - 1 ? 'none' : '4px dashed rgba(255,255,255,0.15)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      opacity: isFuture ? 0.6 : 1,
+                      transition: 'opacity 0.3s ease'
+                    }}
+                  >
+                    {/* السيارات الخلفية */}
+                    {showAmbientCar && (
+                      <div className={`ambient-car-${carDirection}`} style={{ animationDelay: `${carDelay}s` }}>
+                        {carDirection === 'down' ? '🚘' : '🚕'}
+                      </div>
+                    )}
+
+                    {/* السيارة القاتلة وقت الخسارة */}
+                    {isKillerCar && (
+                      <div className="killer-car">🚓</div>
+                    )}
+
+                    {/* الحاجز لو نجا */}
+                    {col.resolved && col.won && (
+                      <div style={{ position: 'absolute', top: 120, fontSize: 32, zIndex: 10 }}>🚧</div>
+                    )}
+
+                    {/* زر البلاعة */}
+                    <button
+                      onClick={crossLane}
+                      disabled={!isCurrentLane || busy || col.resolved}
+                      style={{
+                        width: 90,
+                        height: 90,
+                        borderRadius: '50%',
+                        background: manholeBg,
+                        border: manholeBorder,
+                        color: isCurrentLane ? '#00e701' : 'white',
+                        fontSize: 13,
+                        fontWeight: 900,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: isCurrentLane && !busy && !col.resolved ? 'pointer' : 'default',
+                        transition: 'all 0.15s ease',
+                        boxShadow: shadow,
+                        zIndex: 5
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isCurrentLane && !busy && !col.resolved) {
+                          e.currentTarget.style.transform = 'scale(1.1)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (isCurrentLane && !busy && !col.resolved) {
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }
+                      }}
+                    >
+                      {content}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div style={{ marginTop: 24, textAlign: 'center', color: '#b1bad3' }}>
+            Press the glowing manhole to advance. Be careful, a car might cross!
+          </div>
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+
+// UI Components
+function SummaryItem({ label, value, accent = 'white' }) {
+  return (
+    <div style={{ background: '#132634', borderRadius: 16, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)', flex: 1 }}>
+      <span style={{ color: '#b1bad3', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{label}</span>
+      <span style={{ color: accent, fontWeight: 900, fontSize: 18 }}>{value}</span>
+    </div>
+  );
+}
+
+const inputStyle = { width: '100%', borderRadius: 14, background: '#0f212e', border: '1px solid rgba(255,255,255,0.1)', padding: '14px 16px', color: 'white', fontWeight: 'bold', outline: 'none' };
+const selectStyle = { ...inputStyle, cursor: 'pointer' };
+const actionBtn = { background: '#233847', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '0 20px', cursor: 'pointer', fontWeight: 800, fontSize: 16 };
+const primaryBtn = { width: '100%', borderRadius: 14, background: '#00e701', color: 'black', fontWeight: 900, padding: '15px 16px', border: 'none', cursor: 'pointer', marginTop: 18, transition: 'transform 0.05s ease' };
+const cashoutBtn = { width: '100%', borderRadius: 14, background: '#2f4553', color: 'white', fontWeight: 800, padding: '15px 16px', border: 'none', cursor: 'pointer', marginTop: 10 };

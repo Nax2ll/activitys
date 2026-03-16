@@ -1,0 +1,25 @@
+import { Routes, Route } from 'react-router-dom';
+import HomePage from './pages/HomePage.jsx';
+import DicePage from './pages/DicePage.jsx';
+import MinesPage from './pages/MinesPage.jsx';
+import PlinkoPage from './pages/PlinkoPage.jsx';
+import DragonTowerPage from './pages/DragonTowerPage.jsx';
+import KenoPage from './pages/KenoPage.jsx';
+// أضف السطر هذا
+import ChickenCrossPage from './pages/ChickenCrossPage.jsx'; 
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/dice" element={<DicePage />} />
+      <Route path="/mines" element={<MinesPage />} />
+      <Route path="/plinko" element={<PlinkoPage />} />
+      <Route path="/dragon-tower" element={<DragonTowerPage />} />
+      <Route path="/keno" element={<KenoPage />} />
+      {/* أضف السطر هذا للعبة الجديدة */}
+      <Route path="/chicken-cross" element={<ChickenCrossPage />} />
+
+    </Routes>
+  );
+}
