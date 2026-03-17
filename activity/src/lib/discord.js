@@ -1,7 +1,6 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID;
-const REDIRECT_URI = 'https://127.0.0.1/callback';
 
 export const discordSdk = new DiscordSDK(CLIENT_ID);
 
@@ -33,7 +32,6 @@ export async function initDiscordUser() {
     discordSdk.commands.authorize({
       client_id: CLIENT_ID,
       response_type: 'code',
-      redirect_uri: REDIRECT_URI,
       state: 'activity-auth',
       prompt: 'none',
       scope: ['identify']
@@ -52,10 +50,7 @@ export async function initDiscordUser() {
     fetch('/api/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code,
-        redirect_uri: REDIRECT_URI
-      })
+      body: JSON.stringify({ code })
     }),
     'POST /api/token'
   );
