@@ -1,11 +1,20 @@
 import { useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
-import { mockDiscordUser } from '../lib/mockUser';
 import { placeBet, settleGame } from '../lib/api';
 
 const GRID_SIZE = 25;
 const HOUSE_EDGE = 0.99;
 const MINE_OPTIONS = [1, 3, 5, 7, 10, 15, 20];
+
+function emitBalanceUpdated(balance) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('casino:balance-updated', {
+        detail: { balance }
+      })
+    );
+  }
+}
 
 function combination(n, k) {
   if (k < 0 || k > n) return 0;
@@ -55,6 +64,7 @@ export default function MinesPage() {
   const [message, setMessage] = useState('Choose your bet and start the round.');
   const [busy, setBusy] = useState(false);
   const [lastPayout, setLastPayout] = useState(0);
+  const [roundId, setRoundId] = useState(null);
 
   const revealedSafeCount = useMemo(() => {
     return board.filter((tile) => tile.revealed && !tile.isMine).length;
@@ -76,7 +86,6 @@ export default function MinesPage() {
     return Math.floor((Number(bet) || 0) * nextMultiplier);
   }, [bet, nextMultiplier]);
 
-  // حساب عدد الجواهر المتبقية
   const remainingGems = useMemo(() => {
     const totalGems = 25 - minesCount;
     return totalGems - revealedSafeCount;
@@ -98,6 +107,7 @@ export default function MinesPage() {
     setMessage('Choose your bet and start the round.');
     setLastPayout(0);
     setBusy(false);
+    setRoundId(null);
   }
 
   async function startGame() {
@@ -119,10 +129,11 @@ export default function MinesPage() {
     setMessage('Starting round...');
 
     const betRes = await placeBet(
-      mockDiscordUser.id,
+      undefined,
       amount,
       'mines',
-      `mines start with ${minesCount} mines`
+      `mines start with ${minesCount} mines`,
+      { minesCount }
     );
 
     if (!betRes.ok) {
@@ -131,6 +142,9 @@ export default function MinesPage() {
       return;
     }
 
+    emitBalanceUpdated(betRes.balance);
+
+    setRoundId(betRes.roundId);
     setBoard(createBoard(minesCount));
     setPhase('playing');
     setMessage('Round started. Pick a tile.');
@@ -139,13 +153,27 @@ export default function MinesPage() {
   }
 
   async function finishWin(payout, reasonText) {
+    if (!roundId) {
+      setMessage('Missing roundId.');
+      setBusy(false);
+      return;
+    }
+
     setBusy(true);
 
     const res = await settleGame(
-      mockDiscordUser.id,
+      undefined,
+      roundId,
       payout,
       'mines',
-      reasonText
+      reasonText,
+      {
+        minesCount,
+        safePicks: revealedSafeCount,
+        multiplier: currentMultiplier,
+        bet: Number(bet) || 0
+      },
+      'win'
     );
 
     if (!res.ok) {
@@ -154,9 +182,45 @@ export default function MinesPage() {
       return;
     }
 
+    emitBalanceUpdated(res.balance);
+
+    setRoundId(null);
     setPhase('cashed');
     setLastPayout(payout);
     setBusy(false);
+  }
+
+  async function finishLoss() {
+    if (!roundId) {
+      setMessage('Missing roundId.');
+      return;
+    }
+
+    const res = await settleGame(
+      undefined,
+      roundId,
+      0,
+      'mines',
+      `mines loss with ${minesCount} mines`,
+      {
+        minesCount,
+        safePicks: revealedSafeCount,
+        bet: Number(bet) || 0
+      },
+      'loss'
+    );
+
+    if (!res.ok) {
+      setMessage(res.error || 'Failed to settle round.');
+      return;
+    }
+
+    emitBalanceUpdated(res.balance);
+
+    setRoundId(null);
+    setPhase('lost');
+    setLastPayout(0);
+    setMessage('Boom! You hit a mine.');
   }
 
   async function revealTile(index) {
@@ -174,9 +238,9 @@ export default function MinesPage() {
       }));
 
       setBoard(fullyRevealed);
-      setPhase('lost');
-      setLastPayout(0);
-      setMessage('Boom! You hit a mine.');
+      setBusy(true);
+      await finishLoss();
+      setBusy(false);
       return;
     }
 
@@ -198,8 +262,7 @@ export default function MinesPage() {
 
   function pickRandomTile() {
     if (busy || phase !== 'playing') return;
-    
-    // إيجاد جميع الخلايا غير المفتوحة
+
     const unrevealedIndices = board
       .map((tile, idx) => (!tile.revealed ? idx : -1))
       .filter((idx) => idx !== -1);
@@ -302,7 +365,7 @@ export default function MinesPage() {
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>
             Remaining Gems
           </div>
-          
+
           <div
             style={{
               ...inputStyle,
@@ -423,7 +486,6 @@ export default function MinesPage() {
             {busy && phase === 'playing' ? 'Cashing Out...' : `Cash Out $${potentialPayout}`}
           </button>
 
-          {/* New Random Pick Button */}
           <button
             onClick={pickRandomTile}
             disabled={phase !== 'playing' || busy}
@@ -575,7 +637,6 @@ export default function MinesPage() {
   );
 }
 
-// Styles
 const inputStyle = {
   width: '100%',
   borderRadius: 14,
