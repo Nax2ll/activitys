@@ -200,7 +200,7 @@ export default function ChickenCrossPage() {
           mode
         },
         ...prev
-      ].slice(0, 8)
+      ].slice(0, 3) // التعديل هنا لآخر 3 نتائج
     );
     setBusy(false);
     return true;
@@ -250,7 +250,7 @@ export default function ChickenCrossPage() {
           mode
         },
         ...prev
-      ].slice(0, 8)
+      ].slice(0, 3) // التعديل هنا لآخر 3 نتائج
     );
   }
 
