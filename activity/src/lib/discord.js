@@ -1,6 +1,9 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
-export const discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
+const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID;
+const REDIRECT_URI = 'https://127.0.0.1/callback';
+
+export const discordSdk = new DiscordSDK(CLIENT_ID);
 
 let cachedUser = null;
 
@@ -16,6 +19,11 @@ function withTimeout(promise, label, ms = 10000) {
 export async function initDiscordUser() {
   if (cachedUser) return cachedUser;
 
+  if (!CLIENT_ID) {
+    throw new Error('Missing VITE_DISCORD_CLIENT_ID');
+  }
+
+  console.log('[discord] client id =', CLIENT_ID);
   console.log('[discord] ready start');
   await withTimeout(discordSdk.ready(), 'discordSdk.ready');
   console.log('[discord] ready done');
@@ -23,8 +31,9 @@ export async function initDiscordUser() {
   console.log('[discord] authorize start');
   const authCodeRes = await withTimeout(
     discordSdk.commands.authorize({
-      client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
+      client_id: CLIENT_ID,
       response_type: 'code',
+      redirect_uri: REDIRECT_URI,
       state: 'activity-auth',
       prompt: 'none',
       scope: ['identify']
@@ -43,7 +52,10 @@ export async function initDiscordUser() {
     fetch('/api/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({
+        code,
+        redirect_uri: REDIRECT_URI
+      })
     }),
     'POST /api/token'
   );
