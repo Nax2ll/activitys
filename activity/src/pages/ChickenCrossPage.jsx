@@ -1,13 +1,10 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
-import { mockDiscordUser } from '../lib/mockUser';
 import { placeBet, settleGame } from '../lib/api';
 
 const LEVELS = 25;
 const RTP = 0.98;
 
-// تم تعديل النظام عشان يتناسب مع "خيار واحد" (بلاعة واحدة).
-// الصعوبة الحين تحدد نسبة النجاة (Win Chance) في كل خطوة.
 const MODE_CONFIG = {
   easy: { label: 'Easy', winChance: 0.75, factor: 1.333 },
   medium: { label: 'Medium', winChance: 0.666, factor: 1.5 },
@@ -15,6 +12,16 @@ const MODE_CONFIG = {
   expert: { label: 'Expert', winChance: 0.333, factor: 3.0 },
   master: { label: 'Master', winChance: 0.25, factor: 4.0 }
 };
+
+function emitBalanceUpdated(balance) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('casino:balance-updated', {
+        detail: { balance }
+      })
+    );
+  }
+}
 
 function formatMoney(val) {
   if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';
@@ -30,7 +37,7 @@ function getMultiplier(modeKey, clearedLevels) {
   if (clearedLevels <= 0) return 1;
   const mode = MODE_CONFIG[modeKey];
   const value = RTP * Math.pow(mode.factor, clearedLevels);
-  
+
   if (value >= 1e6) return Math.floor(value);
   if (value >= 1000) return Math.round(value);
   if (value >= 100) return Number(value.toFixed(1));
@@ -41,13 +48,16 @@ function getMultiplier(modeKey, clearedLevels) {
 export default function ChickenCrossPage() {
   const [bet, setBet] = useState('10');
   const [mode, setMode] = useState('medium');
-  const [road, setRoad] = useState(() => Array.from({ length: LEVELS }, () => ({ resolved: false, won: null })));
+  const [road, setRoad] = useState(() =>
+    Array.from({ length: LEVELS }, () => ({ resolved: false, won: null }))
+  );
   const [phase, setPhase] = useState('idle'); // idle | playing | lost | cashed | completed
   const [currentStep, setCurrentStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Choose your difficulty and press the manhole to cross.');
   const [lastPayout, setLastPayout] = useState(0);
   const [history, setHistory] = useState([]);
+  const [roundId, setRoundId] = useState(null);
 
   const modeConfig = MODE_CONFIG[mode];
 
@@ -80,6 +90,7 @@ export default function ChickenCrossPage() {
     setBusy(false);
     setMessage('Choose your difficulty and press the manhole to cross.');
     setLastPayout(0);
+    setRoundId(null);
   }
 
   async function startRound() {
@@ -94,7 +105,13 @@ export default function ChickenCrossPage() {
     setBusy(true);
     setMessage('Starting round...');
 
-    const betRes = await placeBet(mockDiscordUser.id, amount, 'chickenCross', `chicken cross ${mode}`);
+    const betRes = await placeBet(
+      undefined,
+      amount,
+      'chickenCross',
+      `chicken cross ${mode}`,
+      { mode, winChance: modeConfig.winChance, factor: modeConfig.factor, levels: LEVELS }
+    );
 
     if (!betRes.ok) {
       setBusy(false);
@@ -102,6 +119,9 @@ export default function ChickenCrossPage() {
       return;
     }
 
+    emitBalanceUpdated(betRes.balance);
+
+    setRoundId(betRes.roundId);
     setRoad(Array.from({ length: LEVELS }, () => ({ resolved: false, won: null })));
     setPhase('playing');
     setCurrentStep(0);
@@ -111,8 +131,29 @@ export default function ChickenCrossPage() {
   }
 
   async function finalizeWin(payout, reason, levelsCleared, completed = false) {
+    if (!roundId) {
+      setBusy(false);
+      setMessage('Missing roundId.');
+      return false;
+    }
+
     setBusy(true);
-    const settleRes = await settleGame(mockDiscordUser.id, payout, 'chickenCross', reason);
+
+    const settleRes = await settleGame(
+      undefined,
+      roundId,
+      payout,
+      'chickenCross',
+      reason,
+      {
+        mode,
+        levelsCleared,
+        completed,
+        multiplier: getMultiplier(mode, levelsCleared),
+        bet: Number(bet) || 0
+      },
+      'win'
+    );
 
     if (!settleRes.ok) {
       setBusy(false);
@@ -120,6 +161,9 @@ export default function ChickenCrossPage() {
       return false;
     }
 
+    emitBalanceUpdated(settleRes.balance);
+
+    setRoundId(null);
     setPhase(completed ? 'completed' : 'cashed');
     setLastPayout(payout);
     setHistory((prev) => [
@@ -130,36 +174,64 @@ export default function ChickenCrossPage() {
     return true;
   }
 
+  async function finalizeLoss(levelsCleared) {
+    if (!roundId) {
+      setBusy(false);
+      setMessage('Missing roundId.');
+      return;
+    }
+
+    const settleRes = await settleGame(
+      undefined,
+      roundId,
+      0,
+      'chickenCross',
+      `chicken cross loss at step ${levelsCleared + 1}`,
+      {
+        mode,
+        levelsCleared,
+        bet: Number(bet) || 0
+      },
+      'loss'
+    );
+
+    if (!settleRes.ok) {
+      setBusy(false);
+      setMessage(settleRes.error || 'Failed to settle round.');
+      return;
+    }
+
+    emitBalanceUpdated(settleRes.balance);
+
+    setRoundId(null);
+    setPhase('lost');
+    setBusy(false);
+    setLastPayout(0);
+    setMessage('Splat! The chicken got hit. Round lost.');
+    setHistory((prev) => [
+      { type: 'lose', payout: 0, levels: levelsCleared, multiplier: 0, mode },
+      ...prev
+    ].slice(0, 8));
+  }
+
   async function crossLane() {
     if (busy || phase !== 'playing' || currentStep >= LEVELS) return;
-    
+
     setBusy(true);
 
-    // الرول (حظك): هل تنجو أو تندهس بناءً على نسبة الصعوبة
     const isSafe = Math.random() < modeConfig.winChance;
 
-    // 1. تحديث البورد كأنك ضغطت البلاعة
     const updatedRoad = [...road];
     updatedRoad[currentStep] = { resolved: true, won: isSafe };
     setRoad(updatedRoad);
 
-    // 2. الدجاجة تنط للمكان الجديد (تحتاج وقت عشان يخلص الانميشن)
     await new Promise((resolve) => setTimeout(resolve, 350));
 
     if (!isSafe) {
-      // 3. لو خسرت، تجيك سيارة تدهسك 
-      setPhase('lost');
-      setBusy(false);
-      setLastPayout(0);
-      setMessage('Splat! The chicken got hit. Round lost.');
-      setHistory((prev) => [
-        { type: 'lose', payout: 0, levels: currentStep, multiplier: 0, mode },
-        ...prev
-      ].slice(0, 8));
+      await finalizeLoss(currentStep);
       return;
     }
 
-    // 4. لو فزت، ينزل حاجز وتكمل
     const cleared = currentStep + 1;
     const completed = cleared >= LEVELS;
 
@@ -169,7 +241,13 @@ export default function ChickenCrossPage() {
       setCurrentStep(cleared);
       setMessage(`Road crossed completely! Settling $${formatMoney(payout)}...`);
 
-      const ok = await finalizeWin(payout, `chicken cross completed x${finalMultiplier}`, cleared, true);
+      const ok = await finalizeWin(
+        payout,
+        `chicken cross completed x${finalMultiplier}`,
+        cleared,
+        true
+      );
+
       if (ok) setMessage(`Epic win! Payout: $${formatMoney(payout)}`);
       return;
     }
@@ -185,17 +263,18 @@ export default function ChickenCrossPage() {
     const payout = Math.floor((Number(bet) || 0) * currentMultiplier);
     setMessage(`Cashing out $${formatMoney(payout)}...`);
 
-    const ok = await finalizeWin(payout, `chicken cross cashout x${currentMultiplier}`, currentStep, false);
+    const ok = await finalizeWin(
+      payout,
+      `chicken cross cashout x${currentMultiplier}`,
+      currentStep,
+      false
+    );
     if (ok) setMessage(`Cashed out successfully: $${formatMoney(payout)}`);
   }
 
-  // حساب حركة الشوارع (عرض 5 مسارات فقط)
-  // عرض المسار الواحد 140px
-  const shiftX = Math.max(0, currentStep - 2) * 140; 
-  
-  // حساب مكان الدجاجة
-  const chickenLane = phase === 'idle' ? -1 : (phase === 'lost' ? currentStep : currentStep - 1);
-  const chickenX = chickenLane * 140 + 70 - 25; // 70 مركز الشارع، 25 نص عرض الدجاجة
+  const shiftX = Math.max(0, currentStep - 2) * 140;
+  const chickenLane = phase === 'idle' ? -1 : phase === 'lost' ? currentStep : currentStep - 1;
+  const chickenX = chickenLane * 140 + 70 - 25;
 
   return (
     <PageShell title="Chicken Cross">
@@ -213,7 +292,7 @@ export default function ChickenCrossPage() {
           40% { top: 180px; }
           100% { top: 600px; }
         }
-        
+
         .ambient-car-down {
           position: absolute;
           left: 45px;
@@ -232,7 +311,7 @@ export default function ChickenCrossPage() {
           z-index: 1;
           pointer-events: none;
         }
-        
+
         .killer-car {
           position: absolute;
           left: 35px;
@@ -244,7 +323,7 @@ export default function ChickenCrossPage() {
 
         .chicken {
           position: absolute;
-          top: 175px; /* مركز الشارع العمودي */
+          top: 175px;
           width: 50px;
           height: 50px;
           font-size: 40px;
@@ -263,7 +342,7 @@ export default function ChickenCrossPage() {
           transition: all 0.2s ease;
         }
       `}</style>
-      
+
       <div
         style={{
           display: 'grid',
@@ -271,7 +350,6 @@ export default function ChickenCrossPage() {
           gap: 24
         }}
       >
-        {/* Controls Section */}
         <div
           style={{
             background: '#1a2c38',
@@ -295,10 +373,24 @@ export default function ChickenCrossPage() {
                 fontSize: 12,
                 fontWeight: 800,
                 color:
-                  phase === 'playing' ? '#00e701' : phase === 'lost' ? '#ff8d8d' : phase === 'cashed' || phase === 'completed' ? '#7df9a6' : '#b1bad3'
+                  phase === 'playing'
+                    ? '#00e701'
+                    : phase === 'lost'
+                    ? '#ff8d8d'
+                    : phase === 'cashed' || phase === 'completed'
+                    ? '#7df9a6'
+                    : '#b1bad3'
               }}
             >
-              {phase === 'playing' ? 'CROSSING' : phase === 'lost' ? 'SPLAT' : phase === 'cashed' ? 'CASHED OUT' : phase === 'completed' ? 'SURVIVED' : 'READY'}
+              {phase === 'playing'
+                ? 'CROSSING'
+                : phase === 'lost'
+                ? 'SPLAT'
+                : phase === 'cashed'
+                ? 'CASHED OUT'
+                : phase === 'completed'
+                ? 'SURVIVED'
+                : 'READY'}
             </div>
           </div>
 
@@ -374,7 +466,6 @@ export default function ChickenCrossPage() {
           </div>
         </div>
 
-        {/* Board Section */}
         <div
           style={{
             background: '#1a2c38',
@@ -386,68 +477,59 @@ export default function ChickenCrossPage() {
             flexDirection: 'column',
           }}
         >
-          {/* Horizontal Summary */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
             <SummaryItem label="Step" value={`${currentStep}/${LEVELS}`} />
             <SummaryItem label="Multiplier" value={`x${formatMult(currentMultiplier)}`} accent="#00e701" />
             <SummaryItem label="Payout" value={`$${formatMoney(currentPayout)}`} />
           </div>
 
-          {/* Road Viewport (Fixed to 5 lanes approx -> 700px wide) */}
           <div
             style={{
-              background: '#22283e', // الأسفلت
+              background: '#22283e',
               borderRadius: 22,
               border: '1px solid rgba(255,255,255,0.05)',
               height: 400,
               width: '100%',
               maxWidth: 700,
               margin: '0 auto',
-              overflow: 'hidden', // هذي اللي تخفي الشوارع السابقة والقادمة
+              overflow: 'hidden',
               boxShadow: 'inset 0 10px 40px rgba(0,0,0,0.5)',
               position: 'relative'
             }}
           >
-            {/* Sliding Container */}
             <div
               style={{
                 display: 'flex',
                 height: '100%',
-                width: LEVELS * 140, // حجم الشوارع كلها
+                width: LEVELS * 140,
                 transform: `translateX(-${shiftX}px)`,
                 transition: 'transform 0.4s ease',
                 position: 'relative'
               }}
             >
-              
-              {/* الدجاجة */}
               <div className={`chicken ${phase === 'lost' ? 'chicken-splat' : ''}`} style={{ left: chickenX }}>
                 🐔
               </div>
 
-              {/* الشوارع */}
               {road.map((col, i) => {
                 const isCurrentLane = phase === 'playing' && i === currentStep;
                 const isFuture = i > currentStep;
-                
-                // السيارات المستمرة في الشوارع الثانية
-                const showAmbientCar = (i !== currentStep && i !== currentStep - 1);
+
+                const showAmbientCar = i !== currentStep && i !== currentStep - 1;
                 const carDirection = i % 2 === 0 ? 'down' : 'up';
                 const carDelay = (Math.random() * 2).toFixed(2);
-                
-                // السيارة القاتلة
+
                 const isKillerCar = phase === 'lost' && i === currentStep;
 
-                // البلاعة
                 let manholeBg = '#1a2235';
                 let manholeBorder = '2px solid rgba(255,255,255,0.1)';
                 let content = `$${formatMoney((Number(bet) || 0) * getMultiplier(mode, i + 1))}`;
                 let shadow = 'none';
 
                 if (col.resolved) {
-                  manholeBg = 'radial-gradient(circle, #fcd34d 0%, #d97706 100%)'; // ذهبية
+                  manholeBg = 'radial-gradient(circle, #fcd34d 0%, #d97706 100%)';
                   manholeBorder = '2px solid #fbbf24';
-                  content = ''; 
+                  content = '';
                   shadow = '0 4px 15px rgba(217,119,6,0.5)';
                 } else if (isCurrentLane) {
                   manholeBg = 'rgba(0,231,1,0.1)';
@@ -471,24 +553,20 @@ export default function ChickenCrossPage() {
                       transition: 'opacity 0.3s ease'
                     }}
                   >
-                    {/* السيارات الخلفية */}
                     {showAmbientCar && (
                       <div className={`ambient-car-${carDirection}`} style={{ animationDelay: `${carDelay}s` }}>
                         {carDirection === 'down' ? '🚘' : '🚕'}
                       </div>
                     )}
 
-                    {/* السيارة القاتلة وقت الخسارة */}
                     {isKillerCar && (
                       <div className="killer-car">🚓</div>
                     )}
 
-                    {/* الحاجز لو نجا */}
                     {col.resolved && col.won && (
                       <div style={{ position: 'absolute', top: 120, fontSize: 32, zIndex: 10 }}>🚧</div>
                     )}
 
-                    {/* زر البلاعة */}
                     <button
                       onClick={crossLane}
                       disabled={!isCurrentLane || busy || col.resolved}
@@ -527,7 +605,7 @@ export default function ChickenCrossPage() {
               })}
             </div>
           </div>
-          
+
           <div style={{ marginTop: 24, textAlign: 'center', color: '#b1bad3' }}>
             Press the glowing manhole to advance. Be careful, a car might cross!
           </div>
@@ -537,7 +615,6 @@ export default function ChickenCrossPage() {
   );
 }
 
-// UI Components
 function SummaryItem({ label, value, accent = 'white' }) {
   return (
     <div style={{ background: '#132634', borderRadius: 16, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)', flex: 1 }}>
@@ -547,7 +624,17 @@ function SummaryItem({ label, value, accent = 'white' }) {
   );
 }
 
-const inputStyle = { width: '100%', borderRadius: 14, background: '#0f212e', border: '1px solid rgba(255,255,255,0.1)', padding: '14px 16px', color: 'white', fontWeight: 'bold', outline: 'none' };
+const inputStyle = {
+  width: '100%',
+  borderRadius: 14,
+  background: '#0f212e',
+  border: '1px solid rgba(255,255,255,0.1)',
+  padding: '14px 16px',
+  color: 'white',
+  fontWeight: 'bold',
+  outline: 'none'
+};
+
 const selectStyle = { ...inputStyle, cursor: 'pointer' };
 const actionBtn = { background: '#233847', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '0 20px', cursor: 'pointer', fontWeight: 800, fontSize: 16 };
 const primaryBtn = { width: '100%', borderRadius: 14, background: '#00e701', color: 'black', fontWeight: 900, padding: '15px 16px', border: 'none', cursor: 'pointer', marginTop: 18, transition: 'transform 0.05s ease' };
