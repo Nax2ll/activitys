@@ -2,48 +2,28 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 
-async function ensureUser(userId, username = '') {
-  const cleanUsername = String(username || '').trim();
-
-  const update = {
-    $setOnInsert: {
-      userId,
-      username: cleanUsername,
-      balance: 10000,
-      totalWagered: 0,
-      totalWon: 0
-    }
-  };
-
-  if (cleanUsername) {
-    update.$set = { username: cleanUsername };
-  }
-
-  await User.updateOne({ userId }, update, { upsert: true });
-  return User.findOne({ userId });
-}
-
 router.get('/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const username = req.query.username || '';
 
     if (!userId) {
       return res.status(400).json({ ok: false, error: 'Missing userId' });
     }
 
-    const user = await ensureUser(userId, username);
+    let user = await User.findOne({ userId });
+
+    if (!user) {
+      user = await User.create({
+        userId,
+        wallet: 0
+      });
+    }
 
     return res.json({
       ok: true,
-      balance: user.balance,
-      totalWagered: user.totalWagered,
-      totalWon: user.totalWon,
-      stats: user.stats,
+      balance: Number(user.wallet || 0),
       user: {
-        userId: user.userId,
-        username: user.username,
-        avatar: user.avatar || ''
+        userId: user.userId
       }
     });
   } catch (error) {
