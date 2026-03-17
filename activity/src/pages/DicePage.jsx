@@ -173,7 +173,8 @@ export default function DicePage() {
     };
 
     setLastResult(result);
-    setHistory((prev) => [result, ...prev].slice(0, 10));
+    // التعديل هنا: حفظ آخر 3 نتائج فقط بدلاً من 10
+    setHistory((prev) => [result, ...prev].slice(0, 3));
     setBusy(false);
     setPhase('finished');
 
@@ -291,6 +292,32 @@ export default function DicePage() {
             </button>
           </div>
 
+          {/* التعديل هنا: نقلنا زر الـ Bet ليكون فوق الإحصائيات */}
+          <button
+            onClick={startRoll}
+            disabled={phase === 'rolling' || busy}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#00e701',
+              color: 'black',
+              fontWeight: 900,
+              padding: '15px 16px',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 18,
+              opacity: phase === 'rolling' || busy ? 0.65 : 1,
+              transition: 'transform 0.05s ease',
+              fontSize: isMobile ? 15 : 16
+            }}
+            onMouseDown={(e) => !busy && (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            {phase === 'rolling' ? 'Rolling...' : 'Bet'}
+          </button>
+
+          {/* الإحصائيات (فرص الفوز والـ Rules) صارت تحت الزر */}
           <div
             style={{
               marginTop: 18,
@@ -328,30 +355,6 @@ export default function DicePage() {
               <span style={statValue}>1%</span>
             </div>
           </div>
-
-          <button
-            onClick={startRoll}
-            disabled={phase === 'rolling' || busy}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#00e701',
-              color: 'black',
-              fontWeight: 900,
-              padding: '15px 16px',
-              border: 'none',
-              cursor: 'pointer',
-              marginTop: 18,
-              opacity: phase === 'rolling' || busy ? 0.65 : 1,
-              transition: 'transform 0.05s ease',
-              fontSize: isMobile ? 15 : 16
-            }}
-            onMouseDown={(e) => !busy && (e.currentTarget.style.transform = 'scale(0.97)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            {phase === 'rolling' ? 'Rolling...' : 'Bet'}
-          </button>
 
           <div
             style={{
