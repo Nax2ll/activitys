@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
-import { mockDiscordUser } from '../lib/mockUser';
 import { placeBet, settleGame } from '../lib/api';
 
 const TOTAL_NUMBERS = 40;
@@ -21,6 +20,16 @@ const PAYOUT_TABLE = {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function emitBalanceUpdated(balance) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('casino:balance-updated', {
+        detail: { balance }
+      })
+    );
+  }
 }
 
 function shuffle(arr) {
@@ -63,6 +72,7 @@ export default function KenoPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Select your numbers and start the round.');
   const [history, setHistory] = useState([]);
+  const [roundId, setRoundId] = useState(null);
 
   const selectedSet = useMemo(() => new Set(selectedNumbers), [selectedNumbers]);
   const drawnSet = useMemo(() => new Set(drawnNumbers), [drawnNumbers]);
@@ -100,6 +110,7 @@ export default function KenoPage() {
     setDrawnNumbers([]);
     setMessage(nextMessage);
     setPhase('idle');
+    setRoundId(null);
   }
 
   function toggleNumber(num) {
@@ -162,10 +173,11 @@ export default function KenoPage() {
     setMessage('Placing bet and drawing numbers...');
 
     const betRes = await placeBet(
-      mockDiscordUser.id,
+      undefined,
       amount,
       'keno',
-      `keno ${pickCount} picks`
+      `keno ${pickCount} picks`,
+      { pickCount, selectedNumbers }
     );
 
     if (!betRes.ok) {
@@ -174,6 +186,11 @@ export default function KenoPage() {
       setMessage(betRes.error || 'Bet failed');
       return;
     }
+
+    emitBalanceUpdated(betRes.balance);
+
+    const currentRoundId = betRes.roundId;
+    setRoundId(currentRoundId);
 
     const finalDraws = generateDraws();
 
@@ -186,21 +203,33 @@ export default function KenoPage() {
     const finalMultiplier = getMultiplier(pickCount, finalHits);
     const finalPayout = Math.floor(amount * finalMultiplier);
 
-    if (finalPayout > 0) {
-      const settleRes = await settleGame(
-        mockDiscordUser.id,
-        finalPayout,
-        'keno',
-        `keno ${pickCount} picks ${finalHits} hits x${finalMultiplier}`
-      );
+    const settleRes = await settleGame(
+      undefined,
+      currentRoundId,
+      finalPayout,
+      'keno',
+      `keno ${pickCount} picks ${finalHits} hits x${finalMultiplier}`,
+      {
+        pickCount,
+        selectedNumbers,
+        drawnNumbers: [...finalDraws].sort((a, b) => a - b),
+        hitCount: finalHits,
+        multiplier: finalMultiplier,
+        bet: amount
+      },
+      finalPayout > 0 ? 'win' : 'loss'
+    );
 
-      if (!settleRes.ok) {
-        setBusy(false);
-        setPhase('finished');
-        setMessage(settleRes.error || 'Failed to settle payout');
-        return;
-      }
+    if (!settleRes.ok) {
+      setBusy(false);
+      setPhase('finished');
+      setMessage(settleRes.error || 'Failed to settle payout');
+      return;
     }
+
+    emitBalanceUpdated(settleRes.balance);
+
+    setRoundId(null);
 
     const round = {
       picks: [...selectedNumbers],
@@ -229,17 +258,15 @@ export default function KenoPage() {
     const missedSelected = selected && drawnNumbers.length === DRAW_COUNT && !drawn;
     const drawnOnly = drawn && !selected;
 
-    // تم اختياره وجاء بالسحب (فوز للرقم)
     if (hit) {
       return {
         background: 'linear-gradient(180deg, #00e701, #00b90b)',
-        border: '3px solid #fff', // إطار أبيض عشان يبرز
+        border: '3px solid #fff',
         color: '#08120b',
         boxShadow: '0 0 20px rgba(0,231,1,0.6)'
       };
     }
 
-    // اخترته بس ما جاء السحب عليه (خسارة للرقم)
     if (missedSelected) {
       return {
         background: 'linear-gradient(180deg, #7a4d12, #59380d)',
@@ -248,7 +275,6 @@ export default function KenoPage() {
       };
     }
 
-    // رقم طلع بالسحب بس إنت مو مختاره
     if (drawnOnly) {
       return {
         background: 'linear-gradient(180deg, #8b1e2f, #681523)',
@@ -257,7 +283,6 @@ export default function KenoPage() {
       };
     }
 
-    // تم اختياره (لون أخضر كامل)
     if (selected) {
       return {
         background: 'linear-gradient(180deg, #00e701, #00b90b)',
@@ -267,7 +292,6 @@ export default function KenoPage() {
       };
     }
 
-    // خلية عادية
     return {
       background: 'linear-gradient(180deg, #223543, #1a2b37)',
       border: '1px solid rgba(255,255,255,0.06)',
@@ -317,7 +341,6 @@ export default function KenoPage() {
             Bet Amount
           </div>
 
-          {/* Bet Input with 1/2 and 2x buttons */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
             <input
               type="number"
@@ -339,7 +362,6 @@ export default function KenoPage() {
             Pick Count
           </div>
 
-          {/* Pick Count Dropdown */}
           <select
             value={pickCount}
             onChange={(e) => setNewPickCount(Number(e.target.value))}
