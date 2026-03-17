@@ -347,7 +347,8 @@ export default function PlinkoPage() {
     };
 
     setResult(finalResult);
-    setHistory((prev) => [finalResult, ...prev].slice(0, 8));
+    // التعديل هنا: خليتها تقص السجل إلى آخر 3 حبات بدل 8
+    setHistory((prev) => [finalResult, ...prev].slice(0, 3));
     setMessage(`Ball landed on x${multiplier}. Payout: $${payout}`);
   }
 
@@ -449,9 +450,9 @@ export default function PlinkoPage() {
             ))}
           </select>
 
+          {/* التعديل هنا: شلنا الـ disabled والشفافية عشان تقدر تضغط الزر مرات متتالية */}
           <button
             onClick={dropBall}
-            disabled={isDropping}
             style={{
               width: '100%',
               borderRadius: 14,
@@ -463,14 +464,13 @@ export default function PlinkoPage() {
               cursor: 'pointer',
               marginTop: 18,
               transition: 'transform 0.05s ease',
-              opacity: isDropping ? 0.7 : 1,
               fontSize: isMobile ? 15 : 16
             }}
-            onMouseDown={(e) => !isDropping && (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
             onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
             onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
           >
-            {isDropping ? 'Dropping...' : 'Drop Ball'}
+            Drop Ball
           </button>
 
           <div
