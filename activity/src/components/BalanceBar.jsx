@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { getBalance } from '../lib/api';
-import { mockDiscordUser } from '../lib/mockUser';
 
 export default function BalanceBar() {
   const [balance, setBalance] = useState(0);
@@ -11,12 +10,12 @@ export default function BalanceBar() {
     let mounted = true;
 
     async function load() {
-      const data = await getBalance(mockDiscordUser.id);
+      const data = await getBalance();
 
       if (!mounted) return;
 
       if (data?.ok) {
-        setBalance(data.balance || 0);
+        setBalance(Number(data.balance) || 0);
         setStatus('ready');
         setErrorText('');
       } else {
@@ -25,11 +24,25 @@ export default function BalanceBar() {
       }
     }
 
+    function handleBalanceUpdated(event) {
+      const nextBalance = Number(event?.detail?.balance);
+
+      if (!mounted || !Number.isFinite(nextBalance)) return;
+
+      setBalance(nextBalance);
+      setStatus('ready');
+      setErrorText('');
+    }
+
     load();
-    const interval = setInterval(load, 2500);
+
+    window.addEventListener('casino:balance-updated', handleBalanceUpdated);
+
+    const interval = setInterval(load, 15000);
 
     return () => {
       mounted = false;
+      window.removeEventListener('casino:balance-updated', handleBalanceUpdated);
       clearInterval(interval);
     };
   }, []);
