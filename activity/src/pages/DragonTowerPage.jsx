@@ -254,7 +254,7 @@ export default function DragonTowerPage() {
           mode
         },
         ...prev
-      ].slice(0, 8)
+      ].slice(0, 3) // تم التعديل لعرض آخر 3 نتائج فقط
     );
     setBusy(false);
     return true;
@@ -304,7 +304,7 @@ export default function DragonTowerPage() {
           mode
         },
         ...prev
-      ].slice(0, 8)
+      ].slice(0, 3) // تم التعديل لعرض آخر 3 نتائج فقط
     );
   }
 
@@ -725,10 +725,10 @@ export default function DragonTowerPage() {
         >
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: isMobile ? '1fr' : '1fr 220px',
-              gap: isMobile ? 16 : 24,
-              alignItems: 'start'
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              width: '100%'
             }}
           >
             <div
@@ -741,7 +741,9 @@ export default function DragonTowerPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                minHeight: isMobile ? 'auto' : 760
+                minHeight: isMobile ? 'auto' : 760,
+                width: '100%',
+                maxWidth: isMobile ? '100%' : '500px' // تحديد أقصى عرض للشبكة في البي سي
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 4 : 6, width: '100%' }}>
@@ -815,53 +817,6 @@ export default function DragonTowerPage() {
                           </button>
                         );
                       })}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: '#132634',
-                borderRadius: 22,
-                padding: 16,
-                border: '1px solid rgba(255,255,255,0.05)'
-              }}
-            >
-              <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>
-                Ladder
-              </div>
-
-              <div style={{ display: 'grid', gap: 10 }}>
-                {[...ladder].reverse().map((item) => {
-                  const active = item.level === currentLevel + 1 && phase === 'playing';
-                  const cleared = item.level <= currentLevel;
-
-                  return (
-                    <div
-                      key={item.level}
-                      style={{
-                        background: active
-                          ? 'linear-gradient(180deg, #2f4553, #233847)'
-                          : cleared
-                          ? 'linear-gradient(180deg, #245b3d, #1d4d33)'
-                          : '#1a2c38',
-                        border: active
-                          ? '1px solid rgba(0,231,1,0.3)'
-                          : '1px solid rgba(255,255,255,0.05)',
-                        borderRadius: 14,
-                        padding: '12px 14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 12
-                      }}
-                    >
-                      <div style={{ fontWeight: 800 }}>L{item.level}</div>
-                      <div style={{ fontWeight: 900, color: active ? '#00e701' : 'white' }}>
-                        x{item.multiplier}
-                      </div>
                     </div>
                   );
                 })}
