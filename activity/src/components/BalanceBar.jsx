@@ -22,8 +22,8 @@ export default function BalanceBar() {
         if (!mounted) return;
 
         if (data?.ok) {
-          const nextWallet = Number(data.wallet ?? data.balance) || 0;
-          setBalance(nextWallet);
+          const nextBalance = Number(data.wallet ?? data.balance) || 0;
+          setBalance(nextBalance);
           setStatus('ready');
           setErrorText('');
         } else {
@@ -40,13 +40,13 @@ export default function BalanceBar() {
     function handleBalanceUpdated(event) {
       if (!mounted) return;
 
-      const nextWallet = Number(
+      const nextBalance = Number(
         event?.detail?.wallet ?? event?.detail?.balance
       );
 
-      if (!Number.isFinite(nextWallet)) return;
+      if (!Number.isFinite(nextBalance)) return;
 
-      setBalance(nextWallet);
+      setBalance(nextBalance);
       setStatus('ready');
       setErrorText('');
     }
@@ -56,7 +56,7 @@ export default function BalanceBar() {
     window.addEventListener('casino:balance-updated', handleBalanceUpdated);
     window.addEventListener('focus', load);
 
-    // عشان أي تعديل يجي من البوت الثاني أو من مونقو يبان في النشاط
+    // احتياط إضافي: لو تغيّر الرصيد من مكان خارجي
     intervalId = window.setInterval(load, 2000);
 
     return () => {
