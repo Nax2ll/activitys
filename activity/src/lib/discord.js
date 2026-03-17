@@ -1,10 +1,11 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID;
+const STORAGE_KEY = 'casino.discord.user';
 
 export const discordSdk = new DiscordSDK(CLIENT_ID);
 
-let cachedUser = null;
+let cachedUser = readStoredUser();
 let cachedUserPromise = null;
 
 function withTimeout(promise, label, ms = 10000) {
@@ -16,8 +17,62 @@ function withTimeout(promise, label, ms = 10000) {
   ]);
 }
 
-export async function initDiscordUser() {
-  if (cachedUser) return cachedUser;
+function readStoredUser() {
+  try {
+    if (typeof window === 'undefined') return null;
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.userId) return null;
+
+    return {
+      id: parsed.userId,
+      userId: parsed.userId,
+      username: parsed.username || ''
+    };
+  } catch {
+    return null;
+  }
+}
+
+function storeUser(user) {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        userId: user.userId,
+        username: user.username || ''
+      })
+    );
+  } catch {}
+}
+
+export function getCachedDiscordUser() {
+  return cachedUser || readStoredUser();
+}
+
+export function clearCachedDiscordUser() {
+  cachedUser = null;
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {}
+}
+
+export async function initDiscordUser(options = {}) {
+  const { forceRefresh = false } = options;
+
+  if (!forceRefresh) {
+    const existing = cachedUser || readStoredUser();
+    if (existing?.userId) {
+      cachedUser = existing;
+      return existing;
+    }
+  }
+
   if (cachedUserPromise) return cachedUserPromise;
 
   if (!CLIENT_ID) {
@@ -85,6 +140,7 @@ export async function initDiscordUser() {
       username: meData.user.username || ''
     };
 
+    storeUser(cachedUser);
     return cachedUser;
   })();
 
