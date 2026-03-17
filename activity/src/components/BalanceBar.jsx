@@ -56,8 +56,8 @@ export default function BalanceBar() {
     window.addEventListener('casino:balance-updated', handleBalanceUpdated);
     window.addEventListener('focus', load);
 
-    // احتياط إضافي: لو تغيّر الرصيد من مكان خارجي
-    intervalId = window.setInterval(load, 2000);
+    // مزامنة خارجية أخف
+    intervalId = window.setInterval(load, 10000);
 
     return () => {
       mounted = false;
