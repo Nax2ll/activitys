@@ -613,7 +613,10 @@ export default function MinesPage() {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(5, 1fr)',
-              gap: isMobile ? 8 : 14
+              /* تم التعديل هنا لضبط المساحات للبي سي والجوال */
+              gap: isMobile ? 6 : 10,
+              maxWidth: isMobile ? '300px' : '420px', // تصغير الحجم للبي سي
+              margin: '0 auto' // توسيط الشبكة
             }}
           >
             {board.map((tile, index) => {
@@ -627,7 +630,7 @@ export default function MinesPage() {
                   disabled={phase !== 'playing' || busy || tile.revealed}
                   style={{
                     aspectRatio: '1 / 1',
-                    borderRadius: isMobile ? 12 : 18,
+                    borderRadius: isMobile ? 8 : 12, // تعديل الحواف لتناسب الحجم الجديد للبي سي
                     border: '1px solid rgba(255,255,255,0.06)',
                     background: unrevealed
                       ? 'linear-gradient(180deg, #2b4150, #233847)'
@@ -635,7 +638,7 @@ export default function MinesPage() {
                       ? 'linear-gradient(180deg, #245b3d, #1d4d33)'
                       : 'linear-gradient(180deg, #7f1d1d, #5f1414)',
                     color: 'white',
-                    fontSize: isMobile ? 20 : 28,
+                    fontSize: isMobile ? 16 : 24, // تصغير الإيموجي للبي سي شوي
                     fontWeight: 900,
                     cursor:
                       phase === 'playing' && !busy && !tile.revealed ? 'pointer' : 'default',
