@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
 import PageShell from '../components/PageShell';
 import GameCard from '../components/GameCard';
+
+const MOBILE_BREAKPOINT = 820;
 
 const games = [
   {
@@ -36,42 +39,75 @@ const games = [
     path: '/keno',
     image: '🔵 KENO',
     accent: '#334572'
+  },
+  {
+    title: 'Chicken Cross',
+    subtitle: 'Cross the road, survive the lanes, and cash out.',
+    path: '/chicken-cross',
+    image: '🐔 CROSS',
+    accent: '#5b3f24'
   }
 ];
 
 export default function HomePage() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <PageShell title="Casino">
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.3fr 1fr',
-          gap: 24,
-          marginBottom: 24
+          gridTemplateColumns: isMobile ? '1fr' : '1.3fr 1fr',
+          gap: isMobile ? 16 : 24,
+          marginBottom: isMobile ? 16 : 24
         }}
       >
         <div
           style={{
             background: 'linear-gradient(135deg, #1a2c38, #233f52)',
-            borderRadius: 28,
-            padding: 28,
-            minHeight: 210,
+            borderRadius: isMobile ? 22 : 28,
+            padding: isMobile ? 18 : 28,
+            minHeight: isMobile ? 180 : 210,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.22)'
+            boxShadow: '0 20px 60px rgba(0,0,0,0.22)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
           }}
         >
           <div
             style={{
               color: '#00e701',
               fontWeight: 800,
-              fontSize: 14,
-              marginBottom: 10
+              fontSize: isMobile ? 12 : 14,
+              marginBottom: 10,
+              letterSpacing: 0.3
             }}
           >
             FEATURED
           </div>
 
-          <div style={{ fontSize: 42, fontWeight: 900, lineHeight: 1.1 }}>
+          <div
+            style={{
+              fontSize: isMobile ? 'clamp(28px, 7vw, 36px)' : 42,
+              fontWeight: 900,
+              lineHeight: 1.08,
+              wordBreak: 'break-word'
+            }}
+          >
             Play Casino Games
             <br />
             Inside Discord
@@ -80,7 +116,7 @@ export default function HomePage() {
           <div
             style={{
               color: '#b1bad3',
-              fontSize: 16,
+              fontSize: isMobile ? 14 : 16,
               marginTop: 14,
               maxWidth: 650,
               lineHeight: 1.6
@@ -94,12 +130,18 @@ export default function HomePage() {
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 28,
-            padding: 24,
+            borderRadius: isMobile ? 22 : 28,
+            padding: isMobile ? 18 : 24,
             border: '1px solid rgba(255,255,255,0.06)'
           }}
         >
-          <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 16 }}>
+          <div
+            style={{
+              fontSize: isMobile ? 18 : 20,
+              fontWeight: 900,
+              marginBottom: 16
+            }}
+          >
             Popular Right Now
           </div>
 
@@ -110,15 +152,30 @@ export default function HomePage() {
                 style={{
                   background: '#233847',
                   borderRadius: 16,
-                  padding: '14px 16px',
+                  padding: isMobile ? '12px 14px' : '14px 16px',
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  gap: 12
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 800 }}>{name}</div>
-                  <div style={{ color: '#b1bad3', fontSize: 13, marginTop: 4 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: isMobile ? 14 : 15
+                    }}
+                  >
+                    {name}
+                  </div>
+                  <div
+                    style={{
+                      color: '#b1bad3',
+                      fontSize: isMobile ? 12 : 13,
+                      marginTop: 4,
+                      lineHeight: 1.45
+                    }}
+                  >
                     {i === 0
                       ? 'High risk, high reward'
                       : i === 1
@@ -126,7 +183,16 @@ export default function HomePage() {
                       : 'Animated drop game'}
                   </div>
                 </div>
-                <div style={{ color: '#00e701', fontWeight: 900 }}>Live</div>
+                <div
+                  style={{
+                    color: '#00e701',
+                    fontWeight: 900,
+                    fontSize: isMobile ? 13 : 14,
+                    flexShrink: 0
+                  }}
+                >
+                  Live
+                </div>
               </div>
             ))}
           </div>
@@ -136,8 +202,10 @@ export default function HomePage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 24
+          gridTemplateColumns: isMobile
+            ? '1fr'
+            : 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: isMobile ? 16 : 24
         }}
       >
         {games.map((game) => (
