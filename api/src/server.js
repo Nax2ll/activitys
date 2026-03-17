@@ -31,14 +31,10 @@ app.get('/health', (req, res) => {
 
 app.post('/token', async (req, res) => {
   try {
-    const { code, redirect_uri } = req.body;
+    const { code } = req.body;
 
     if (!code) {
       return res.status(400).json({ ok: false, error: 'Missing code' });
-    }
-
-    if (!redirect_uri) {
-      return res.status(400).json({ ok: false, error: 'Missing redirect_uri' });
     }
 
     const params = new URLSearchParams();
@@ -46,7 +42,6 @@ app.post('/token', async (req, res) => {
     params.append('client_secret', process.env.DISCORD_CLIENT_SECRET);
     params.append('grant_type', 'authorization_code');
     params.append('code', code);
-    params.append('redirect_uri', redirect_uri);
 
     const response = await fetch('https://discord.com/api/oauth2/token', {
       method: 'POST',
