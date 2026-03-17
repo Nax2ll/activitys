@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
 import { placeBet, settleGame } from '../lib/api';
 
 const TOTAL_NUMBERS = 40;
 const DRAW_COUNT = 10;
+const MOBILE_BREAKPOINT = 820;
 
 const PAYOUT_TABLE = {
   1: { 1: 3.8 },
@@ -68,11 +69,25 @@ export default function KenoPage() {
   const [pickCount, setPickCount] = useState(4);
   const [selectedNumbers, setSelectedNumbers] = useState([]);
   const [drawnNumbers, setDrawnNumbers] = useState([]);
-  const [phase, setPhase] = useState('idle'); // idle | drawing | finished
+  const [phase, setPhase] = useState('idle');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Select your numbers and start the round.');
   const [history, setHistory] = useState([]);
   const [roundId, setRoundId] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const selectedSet = useMemo(() => new Set(selectedNumbers), [selectedNumbers]);
   const drawnSet = useMemo(() => new Set(drawnNumbers), [drawnNumbers]);
@@ -304,17 +319,20 @@ export default function KenoPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '400px 1fr',
-          gap: 24
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(340px, 400px) minmax(0, 1fr)',
+          gap: isMobile ? 16 : 24,
+          alignItems: 'start'
         }}
       >
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 20,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 20,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 2 : 1
           }}
         >
           <div
@@ -322,15 +340,17 @@ export default function KenoPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 18
+              marginBottom: 18,
+              gap: 12
             }}
           >
-            <div style={{ fontSize: 24, fontWeight: 900 }}>Manual</div>
+            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 900 }}>Manual</div>
             <div
               style={{
                 fontSize: 12,
                 fontWeight: 800,
-                color: phase === 'drawing' ? '#00e701' : '#b1bad3'
+                color: phase === 'drawing' ? '#00e701' : '#b1bad3',
+                flexShrink: 0
               }}
             >
               {phase === 'drawing' ? 'DRAWING' : 'READY'}
@@ -341,19 +361,34 @@ export default function KenoPage() {
             Bet Amount
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr 80px 80px' : '1fr 88px 88px',
+              gap: 8,
+              marginBottom: 18
+            }}
+          >
             <input
               type="number"
               min="1"
               value={bet}
               onChange={(e) => setBet(e.target.value)}
               disabled={phase === 'drawing' || busy}
-              style={{ ...inputStyle, flex: 1 }}
+              style={{ ...inputStyle, minWidth: 0 }}
             />
-            <button onClick={divideBet} disabled={phase === 'drawing' || busy} style={actionBtn}>
+            <button
+              onClick={divideBet}
+              disabled={phase === 'drawing' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
               1/2
             </button>
-            <button onClick={multiplyBet} disabled={phase === 'drawing' || busy} style={actionBtn}>
+            <button
+              onClick={multiplyBet}
+              disabled={phase === 'drawing' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
               2x
             </button>
           </div>
@@ -366,7 +401,11 @@ export default function KenoPage() {
             value={pickCount}
             onChange={(e) => setNewPickCount(Number(e.target.value))}
             disabled={phase === 'drawing' || busy}
-            style={{ ...selectStyle, marginBottom: 16, opacity: phase === 'drawing' || busy ? 0.6 : 1 }}
+            style={{
+              ...selectStyle,
+              marginBottom: 16,
+              opacity: phase === 'drawing' || busy ? 0.6 : 1
+            }}
           >
             {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
               <option key={value} value={value}>
@@ -383,11 +422,7 @@ export default function KenoPage() {
               marginTop: 16
             }}
           >
-            <button
-              onClick={quickPick}
-              disabled={phase === 'drawing' || busy}
-              style={secondaryBtn}
-            >
+            <button onClick={quickPick} disabled={phase === 'drawing' || busy} style={secondaryBtn}>
               Quick Pick
             </button>
 
@@ -400,12 +435,50 @@ export default function KenoPage() {
             </button>
           </div>
 
+          <button
+            onClick={startRound}
+            disabled={phase === 'drawing' || busy}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#00e701',
+              color: 'black',
+              fontWeight: 900,
+              padding: '15px 16px',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 18,
+              opacity: phase === 'drawing' || busy ? 0.65 : 1,
+              transition: 'transform 0.05s ease',
+              fontSize: isMobile ? 15 : 16
+            }}
+            onMouseDown={(e) =>
+              phase !== 'drawing' && !busy && (e.currentTarget.style.transform = 'scale(0.97)')
+            }
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            {phase === 'drawing' ? 'Drawing...' : 'Bet'}
+          </button>
+
+          <div
+            style={{
+              marginTop: 16,
+              color: drawnNumbers.length === DRAW_COUNT && payout > 0 ? '#7df9a6' : '#b1bad3',
+              minHeight: 24,
+              lineHeight: 1.6,
+              fontSize: isMobile ? 14 : 15
+            }}
+          >
+            {message}
+          </div>
+
           <div
             style={{
               marginTop: 18,
               background: '#132634',
               borderRadius: 18,
-              padding: 16,
+              padding: isMobile ? 14 : 16,
               border: '1px solid rgba(255,255,255,0.05)',
               lineHeight: 1.9
             }}
@@ -443,42 +516,10 @@ export default function KenoPage() {
 
             <div style={statRow}>
               <span style={statLabel}>Payout</span>
-              <span style={statValue}>{drawnNumbers.length === DRAW_COUNT ? `$${payout}` : '-'}</span>
+              <span style={statValue}>
+                {drawnNumbers.length === DRAW_COUNT ? `$${payout}` : '-'}
+              </span>
             </div>
-          </div>
-
-          <button
-            onClick={startRound}
-            disabled={phase === 'drawing' || busy}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#00e701',
-              color: 'black',
-              fontWeight: 900,
-              padding: '15px 16px',
-              border: 'none',
-              cursor: 'pointer',
-              marginTop: 18,
-              opacity: phase === 'drawing' || busy ? 0.65 : 1,
-              transition: 'transform 0.05s ease',
-            }}
-            onMouseDown={(e) => phase !== 'drawing' && !busy && (e.currentTarget.style.transform = 'scale(0.97)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            {phase === 'drawing' ? 'Drawing...' : 'Bet'}
-          </button>
-
-          <div
-            style={{
-              marginTop: 16,
-              color: drawnNumbers.length === DRAW_COUNT && payout > 0 ? '#7df9a6' : '#b1bad3',
-              minHeight: 24,
-              lineHeight: 1.6
-            }}
-          >
-            {message}
           </div>
 
           <div style={{ marginTop: 18 }}>
@@ -508,18 +549,35 @@ export default function KenoPage() {
                       padding: 14,
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      gap: 12
                     }}
                   >
-                    <div>
-                      <div style={{ fontWeight: 800 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         {item.hitCount} hit{item.hitCount === 1 ? '' : 's'}
                       </div>
-                      <div style={{ color: '#b1bad3', fontSize: 13, marginTop: 4 }}>
+                      <div
+                        style={{
+                          color: '#b1bad3',
+                          fontSize: 13,
+                          marginTop: 4,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         {item.pickCount} picks · x{formatMultiplier(item.multiplier)}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 900 }}>${item.payout}</div>
+                    <div style={{ fontWeight: 900, flexShrink: 0 }}>${item.payout}</div>
                   </div>
                 ))
               )}
@@ -530,27 +588,29 @@ export default function KenoPage() {
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 24,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 24,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 1 : 2
           }}
         >
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 260px',
-              gap: 20,
+              gridTemplateColumns: isMobile ? '1fr' : '1fr 260px',
+              gap: isMobile ? 16 : 20,
               alignItems: 'start'
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
               <div
                 style={{
                   background:
                     'radial-gradient(circle at top, rgba(68,98,121,0.38), rgba(15,33,46,0.98) 65%)',
                   borderRadius: 22,
-                  padding: 18,
+                  padding: isMobile ? 12 : 18,
                   border: '1px solid rgba(255,255,255,0.05)'
                 }}
               >
@@ -558,12 +618,14 @@ export default function KenoPage() {
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 16
+                    alignItems: isMobile ? 'flex-start' : 'center',
+                    marginBottom: 16,
+                    gap: 12,
+                    flexDirection: isMobile ? 'column' : 'row'
                   }}
                 >
-                  <div style={{ fontSize: 20, fontWeight: 900 }}>Board</div>
-                  <div style={{ color: '#b1bad3', fontSize: 14 }}>
+                  <div style={{ fontSize: isMobile ? 18 : 20, fontWeight: 900 }}>Board</div>
+                  <div style={{ color: '#b1bad3', fontSize: isMobile ? 13 : 14 }}>
                     {selectedNumbers.length}/{pickCount} selected
                   </div>
                 </div>
@@ -572,7 +634,7 @@ export default function KenoPage() {
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(8, 1fr)',
-                    gap: 12
+                    gap: isMobile ? 6 : 12
                   }}
                 >
                   {Array.from({ length: TOTAL_NUMBERS }, (_, i) => i + 1).map((num) => {
@@ -588,16 +650,17 @@ export default function KenoPage() {
                           (!selectedSet.has(num) && selectedNumbers.length >= pickCount)
                         }
                         style={{
-                          height: 58,
-                          borderRadius: 16,
+                          height: isMobile ? 40 : 58,
+                          borderRadius: isMobile ? 10 : 16,
                           fontWeight: 900,
-                          fontSize: 18,
+                          fontSize: isMobile ? 14 : 18,
                           cursor: phase === 'drawing' || busy ? 'default' : 'pointer',
                           transition: 'transform 0.12s ease, box-shadow 0.16s ease',
+                          minWidth: 0,
                           ...styleSet
                         }}
                         onMouseEnter={(e) => {
-                          if (phase !== 'drawing' && !busy) {
+                          if (phase !== 'drawing' && !busy && !isMobile) {
                             e.currentTarget.style.transform = 'translateY(-2px)';
                           }
                         }}
@@ -616,7 +679,7 @@ export default function KenoPage() {
                 style={{
                   background: '#132634',
                   borderRadius: 18,
-                  padding: 16,
+                  padding: isMobile ? 14 : 16,
                   border: '1px solid rgba(255,255,255,0.05)'
                 }}
               >
@@ -628,7 +691,7 @@ export default function KenoPage() {
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(5, 1fr)',
-                    gap: 10
+                    gap: isMobile ? 8 : 10
                   }}
                 >
                   {Array.from({ length: DRAW_COUNT }, (_, i) => {
@@ -639,8 +702,8 @@ export default function KenoPage() {
                       <div
                         key={i}
                         style={{
-                          height: 56,
-                          borderRadius: 16,
+                          height: isMobile ? 46 : 56,
+                          borderRadius: isMobile ? 12 : 16,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -651,9 +714,13 @@ export default function KenoPage() {
                             : '#1a2c38',
                           border: number && isHit ? '2px solid #fff' : '1px solid rgba(255,255,255,0.06)',
                           fontWeight: 900,
-                          fontSize: 18,
+                          fontSize: isMobile ? 15 : 18,
                           color: number && isHit ? '#08120b' : 'white',
-                          boxShadow: number && isHit ? '0 0 10px rgba(0,231,1,0.5)' : (number ? '0 10px 18px rgba(0,0,0,0.16)' : 'none')
+                          boxShadow: number && isHit
+                            ? '0 0 10px rgba(0,231,1,0.5)'
+                            : number
+                            ? '0 10px 18px rgba(0,0,0,0.16)'
+                            : 'none'
                         }}
                       >
                         {number || '—'}
@@ -666,7 +733,8 @@ export default function KenoPage() {
                   style={{
                     marginTop: 16,
                     color: '#b1bad3',
-                    lineHeight: 1.8
+                    lineHeight: 1.8,
+                    fontSize: isMobile ? 14 : 15
                   }}
                 >
                   <div>
@@ -734,7 +802,8 @@ export default function KenoPage() {
                         padding: '12px 14px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between'
+                        justifyContent: 'space-between',
+                        gap: 12
                       }}
                     >
                       <div style={{ fontWeight: 800 }}>
@@ -743,7 +812,8 @@ export default function KenoPage() {
                       <div
                         style={{
                           fontWeight: 900,
-                          color: row.multiplier > 0 ? 'white' : '#7f93a3'
+                          color: row.multiplier > 0 ? 'white' : '#7f93a3',
+                          flexShrink: 0
                         }}
                       >
                         {row.multiplier > 0 ? `x${formatMultiplier(row.multiplier)}` : '—'}
@@ -799,7 +869,6 @@ const actionBtn = {
   color: 'white',
   border: '1px solid rgba(255,255,255,0.06)',
   borderRadius: 12,
-  padding: '0 20px',
   cursor: 'pointer',
   fontWeight: 800,
   fontSize: 16
@@ -828,5 +897,7 @@ const statLabel = {
 
 const statValue = {
   color: 'white',
-  fontWeight: 800
+  fontWeight: 800,
+  minWidth: 0,
+  textAlign: 'right'
 };
