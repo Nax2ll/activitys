@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
-import { mockDiscordUser } from '../lib/mockUser';
 import { placeBet, settleGame } from '../lib/api';
 
 const ROW_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -9,6 +8,16 @@ const RTP = 0.97;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function emitBalanceUpdated(balance) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('casino:balance-updated', {
+        detail: { balance }
+      })
+    );
+  }
 }
 
 function choose(n, k) {
@@ -215,10 +224,7 @@ export default function PlinkoPage() {
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [activeBucket, setActiveBucket] = useState(null);
-  
-  // States
   const [balls, setBalls] = useState([]);
-  const [roundId, setRoundId] = useState(null); // الـ State الجديد حسب طلبك
 
   const multipliers = useMemo(() => buildMultipliers(rows, risk), [rows, risk]);
   const pegs = useMemo(() => getPegPositions(rows), [rows]);
@@ -255,12 +261,12 @@ export default function PlinkoPage() {
     }
 
     const ballId = Date.now() + Math.random();
+
     setBalls((prev) => [...prev, { id: ballId, left: '50%', top: '4%' }]);
     setMessage('Placing bet and dropping ball...');
 
-    // التحديث الجديد لـ placeBet
     const betRes = await placeBet(
-      mockDiscordUser,
+      undefined,
       amount,
       'plinko',
       'plinko bet',
@@ -273,9 +279,9 @@ export default function PlinkoPage() {
       return;
     }
 
-    // حفظ الـ roundId في الستيت، وفي متغير محلي للكرة هذي تحديداً (عشان دعم الـ Spamming)
+    emitBalanceUpdated(betRes.balance);
+
     const currentRoundId = betRes.roundId;
-    setRoundId(currentRoundId);
 
     const bits = Array.from({ length: rows }, () => (Math.random() < 0.5 ? 0 : 1));
     const built = buildPathPoints(bits, rows);
@@ -293,25 +299,24 @@ export default function PlinkoPage() {
     setActiveBucket(bucketIndex);
     await sleep(160);
 
-    // التحديث الجديد لـ settleGame مع تمرير currentRoundId
     const settleRes = await settleGame(
-      mockDiscordUser,
+      undefined,
       currentRoundId,
       payout,
       'plinko',
       'plinko payout',
-      { multiplier },
+      { multiplier, bucketIndex, risk, rows },
       payout > 0 ? 'win' : 'loss'
     );
 
-    // تصفير الـ roundId 
-    setRoundId(null);
     setBalls((prev) => prev.filter((b) => b.id !== ballId));
 
     if (!settleRes.ok) {
       setMessage(settleRes.error || 'Failed to settle payout');
       return;
     }
+
+    emitBalanceUpdated(settleRes.balance);
 
     const finalResult = {
       bucketIndex,
