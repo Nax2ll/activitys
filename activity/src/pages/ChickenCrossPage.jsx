@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
 import { placeBet, settleGame } from '../lib/api';
 
 const LEVELS = 25;
 const RTP = 0.98;
+const MOBILE_BREAKPOINT = 820;
 
 const MODE_CONFIG = {
   easy: { label: 'Easy', winChance: 0.75, factor: 1.333 },
   medium: { label: 'Medium', winChance: 0.666, factor: 1.5 },
-  hard: { label: 'Hard', winChance: 0.50, factor: 2.0 },
+  hard: { label: 'Hard', winChance: 0.5, factor: 2.0 },
   expert: { label: 'Expert', winChance: 0.333, factor: 3.0 },
   master: { label: 'Master', winChance: 0.25, factor: 4.0 }
 };
@@ -51,18 +52,36 @@ export default function ChickenCrossPage() {
   const [road, setRoad] = useState(() =>
     Array.from({ length: LEVELS }, () => ({ resolved: false, won: null }))
   );
-  const [phase, setPhase] = useState('idle'); // idle | playing | lost | cashed | completed
+  const [phase, setPhase] = useState('idle');
   const [currentStep, setCurrentStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Choose your difficulty and press the manhole to cross.');
   const [lastPayout, setLastPayout] = useState(0);
   const [history, setHistory] = useState([]);
   const [roundId, setRoundId] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const modeConfig = MODE_CONFIG[mode];
 
   const currentMultiplier = useMemo(() => {
     return currentStep > 0 ? getMultiplier(mode, currentStep) : 0;
+  }, [mode, currentStep]);
+
+  const nextMultiplier = useMemo(() => {
+    return getMultiplier(mode, currentStep + 1);
   }, [mode, currentStep]);
 
   const currentPayout = useMemo(() => {
@@ -72,6 +91,11 @@ export default function ChickenCrossPage() {
   const nextPayout = useMemo(() => {
     return Math.floor((Number(bet) || 0) * getMultiplier(mode, currentStep + 1));
   }, [bet, mode, currentStep]);
+
+  const nextSafeChance = useMemo(() => {
+    if (phase !== 'playing') return null;
+    return (modeConfig.winChance * 100).toFixed(2);
+  }, [phase, modeConfig]);
 
   function multiplyBet() {
     setBet(String((Number(bet) || 0) * 2));
@@ -166,10 +190,18 @@ export default function ChickenCrossPage() {
     setRoundId(null);
     setPhase(completed ? 'completed' : 'cashed');
     setLastPayout(payout);
-    setHistory((prev) => [
-      { type: 'win', payout, levels: levelsCleared, multiplier: getMultiplier(mode, levelsCleared), mode },
-      ...prev
-    ].slice(0, 8));
+    setHistory((prev) =>
+      [
+        {
+          type: 'win',
+          payout,
+          levels: levelsCleared,
+          multiplier: getMultiplier(mode, levelsCleared),
+          mode
+        },
+        ...prev
+      ].slice(0, 8)
+    );
     setBusy(false);
     return true;
   }
@@ -208,10 +240,18 @@ export default function ChickenCrossPage() {
     setBusy(false);
     setLastPayout(0);
     setMessage('Splat! The chicken got hit. Round lost.');
-    setHistory((prev) => [
-      { type: 'lose', payout: 0, levels: levelsCleared, multiplier: 0, mode },
-      ...prev
-    ].slice(0, 8));
+    setHistory((prev) =>
+      [
+        {
+          type: 'lose',
+          payout: 0,
+          levels: levelsCleared,
+          multiplier: 0,
+          mode
+        },
+        ...prev
+      ].slice(0, 8)
+    );
   }
 
   async function crossLane() {
@@ -225,7 +265,7 @@ export default function ChickenCrossPage() {
     updatedRoad[currentStep] = { resolved: true, won: isSafe };
     setRoad(updatedRoad);
 
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    await new Promise((resolve) => setTimeout(resolve, isMobile ? 260 : 350));
 
     if (!isSafe) {
       await finalizeLoss(currentStep);
@@ -272,9 +312,15 @@ export default function ChickenCrossPage() {
     if (ok) setMessage(`Cashed out successfully: $${formatMoney(payout)}`);
   }
 
-  const shiftX = Math.max(0, currentStep - 2) * 140;
+  const laneWidth = isMobile ? 88 : 140;
+  const manholeSize = isMobile ? 58 : 90;
+  const sceneHeight = isMobile ? 250 : 400;
+  const chickenTop = isMobile ? 108 : 175;
+  const chickenSize = isMobile ? 34 : 50;
+  const chickenFontSize = isMobile ? 28 : 40;
+  const shiftX = Math.max(0, currentStep - (isMobile ? 1 : 2)) * laneWidth;
   const chickenLane = phase === 'idle' ? -1 : phase === 'lost' ? currentStep : currentStep - 1;
-  const chickenX = chickenLane * 140 + 70 - 25;
+  const chickenX = chickenLane * laneWidth + laneWidth / 2 - chickenSize / 2;
 
   return (
     <PageShell title="Chicken Cross">
@@ -295,8 +341,8 @@ export default function ChickenCrossPage() {
 
         .ambient-car-down {
           position: absolute;
-          left: 45px;
-          font-size: 50px;
+          left: ${isMobile ? 26 : 45}px;
+          font-size: ${isMobile ? 28 : 50}px;
           animation: ambientDriveDown 2s linear infinite;
           opacity: 0.15;
           z-index: 1;
@@ -304,8 +350,8 @@ export default function ChickenCrossPage() {
         }
         .ambient-car-up {
           position: absolute;
-          left: 45px;
-          font-size: 50px;
+          left: ${isMobile ? 26 : 45}px;
+          font-size: ${isMobile ? 28 : 50}px;
           animation: ambientDriveUp 2.5s linear infinite;
           opacity: 0.15;
           z-index: 1;
@@ -314,8 +360,8 @@ export default function ChickenCrossPage() {
 
         .killer-car {
           position: absolute;
-          left: 35px;
-          font-size: 70px;
+          left: ${isMobile ? 18 : 35}px;
+          font-size: ${isMobile ? 42 : 70}px;
           animation: killerSmash 0.5s linear forwards;
           z-index: 20;
           pointer-events: none;
@@ -323,10 +369,10 @@ export default function ChickenCrossPage() {
 
         .chicken {
           position: absolute;
-          top: 175px;
-          width: 50px;
-          height: 50px;
-          font-size: 40px;
+          top: ${chickenTop}px;
+          width: ${chickenSize}px;
+          height: ${chickenSize}px;
+          font-size: ${chickenFontSize}px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -336,7 +382,7 @@ export default function ChickenCrossPage() {
         }
 
         .chicken-splat {
-          transform: scale(1.3) scaleY(0.2) translateY(80px);
+          transform: scale(1.3) scaleY(0.2) translateY(40px);
           filter: drop-shadow(0 0 15px #ef4444);
           opacity: 0.85;
           transition: all 0.2s ease;
@@ -346,17 +392,20 @@ export default function ChickenCrossPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '400px 1fr',
-          gap: 24
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(340px, 400px) minmax(0, 1fr)',
+          gap: isMobile ? 16 : 24,
+          alignItems: 'start'
         }}
       >
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 20,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 20,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 2 : 1
           }}
         >
           <div
@@ -364,10 +413,11 @@ export default function ChickenCrossPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 18
+              marginBottom: 18,
+              gap: 12
             }}
           >
-            <div style={{ fontSize: 24, fontWeight: 900 }}>Manual</div>
+            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 900 }}>Manual</div>
             <div
               style={{
                 fontSize: 12,
@@ -379,7 +429,8 @@ export default function ChickenCrossPage() {
                     ? '#ff8d8d'
                     : phase === 'cashed' || phase === 'completed'
                     ? '#7df9a6'
-                    : '#b1bad3'
+                    : '#b1bad3',
+                flexShrink: 0
               }}
             >
               {phase === 'playing'
@@ -396,17 +447,36 @@ export default function ChickenCrossPage() {
 
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr 80px 80px' : '1fr 88px 88px',
+              gap: 8,
+              marginBottom: 18
+            }}
+          >
             <input
               type="number"
               min="1"
               value={bet}
               onChange={(e) => setBet(e.target.value)}
               disabled={phase === 'playing' || busy}
-              style={{ ...inputStyle, flex: 1 }}
+              style={{ ...inputStyle, minWidth: 0 }}
             />
-            <button onClick={divideBet} disabled={phase === 'playing' || busy} style={actionBtn}>1/2</button>
-            <button onClick={multiplyBet} disabled={phase === 'playing' || busy} style={actionBtn}>2x</button>
+            <button
+              onClick={divideBet}
+              disabled={phase === 'playing' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
+              1/2
+            </button>
+            <button
+              onClick={multiplyBet}
+              disabled={phase === 'playing' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
+              2x
+            </button>
           </div>
 
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Difficulty</div>
@@ -417,17 +487,27 @@ export default function ChickenCrossPage() {
               resetGame(e.target.value);
             }}
             disabled={phase === 'playing' || busy}
-            style={{ ...selectStyle, marginBottom: 18, opacity: phase === 'playing' || busy ? 0.6 : 1 }}
+            style={{
+              ...selectStyle,
+              marginBottom: 18,
+              opacity: phase === 'playing' || busy ? 0.6 : 1
+            }}
           >
             {Object.entries(MODE_CONFIG).map(([key, cfg]) => (
-              <option key={key} value={key}>{cfg.label}</option>
+              <option key={key} value={key}>
+                {cfg.label}
+              </option>
             ))}
           </select>
 
           <button
             onClick={startRound}
             disabled={phase === 'playing' || busy}
-            style={{ ...primaryBtn, opacity: phase === 'playing' || busy ? 0.65 : 1 }}
+            style={{
+              ...primaryBtn,
+              opacity: phase === 'playing' || busy ? 0.65 : 1,
+              fontSize: isMobile ? 15 : 16
+            }}
           >
             {busy && phase !== 'playing' ? 'Starting...' : phase === 'playing' ? 'Game Running' : 'Bet'}
           </button>
@@ -435,30 +515,136 @@ export default function ChickenCrossPage() {
           <button
             onClick={cashOut}
             disabled={phase !== 'playing' || currentStep <= 0 || busy}
-            style={{ ...cashoutBtn, opacity: phase !== 'playing' || currentStep <= 0 || busy ? 0.6 : 1 }}
+            style={{
+              ...cashoutBtn,
+              opacity: phase !== 'playing' || currentStep <= 0 || busy ? 0.6 : 1,
+              fontSize: isMobile ? 15 : 16
+            }}
           >
             {busy && phase === 'playing' ? 'Processing...' : `Cash Out $${formatMoney(currentPayout)}`}
           </button>
 
-          <div style={{ marginTop: 16, color: phase === 'lost' ? '#ff8d8d' : phase === 'cashed' || phase === 'completed' ? '#7df9a6' : '#b1bad3', minHeight: 22, lineHeight: 1.6 }}>
+          <div
+            style={{
+              marginTop: 16,
+              color:
+                phase === 'lost'
+                  ? '#ff8d8d'
+                  : phase === 'cashed' || phase === 'completed'
+                  ? '#7df9a6'
+                  : '#b1bad3',
+              minHeight: 22,
+              lineHeight: 1.6,
+              fontSize: isMobile ? 14 : 15
+            }}
+          >
             {message}
+          </div>
+
+          <div
+            style={{
+              marginTop: 18,
+              background: '#132634',
+              borderRadius: 18,
+              padding: isMobile ? 14 : 16,
+              border: '1px solid rgba(255,255,255,0.05)',
+              lineHeight: 1.9
+            }}
+          >
+            <div style={statRow}>
+              <span style={statLabel}>Step</span>
+              <span style={statValue}>
+                {currentStep}/{LEVELS}
+              </span>
+            </div>
+
+            <div style={statRow}>
+              <span style={statLabel}>Current multiplier</span>
+              <span style={{ ...statValue, color: '#00e701' }}>
+                {currentStep > 0 ? `x${formatMult(currentMultiplier)}` : '-'}
+              </span>
+            </div>
+
+            <div style={statRow}>
+              <span style={statLabel}>Next multiplier</span>
+              <span style={statValue}>{`x${formatMult(nextMultiplier)}`}</span>
+            </div>
+
+            <div style={statRow}>
+              <span style={statLabel}>Current payout</span>
+              <span style={statValue}>${formatMoney(currentPayout)}</span>
+            </div>
+
+            <div style={statRow}>
+              <span style={statLabel}>Next payout</span>
+              <span style={statValue}>${formatMoney(nextPayout)}</span>
+            </div>
+
+            <div style={statRow}>
+              <span style={statLabel}>Next safe chance</span>
+              <span style={statValue}>{nextSafeChance ? `${nextSafeChance}%` : '-'}</span>
+            </div>
+
+            <div style={statRow}>
+              <span style={statLabel}>Last payout</span>
+              <span style={statValue}>${formatMoney(lastPayout)}</span>
+            </div>
           </div>
 
           <div style={{ marginTop: 18 }}>
             <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Last Results</div>
             <div style={{ display: 'grid', gap: 10 }}>
               {history.length === 0 ? (
-                <div style={{ background: '#132634', borderRadius: 14, padding: 14, color: '#b1bad3' }}>No crossings yet.</div>
+                <div
+                  style={{
+                    background: '#132634',
+                    borderRadius: 14,
+                    padding: 14,
+                    color: '#b1bad3'
+                  }}
+                >
+                  No crossings yet.
+                </div>
               ) : (
                 history.map((item, index) => (
-                  <div key={`${item.type}-${item.levels}-${index}`} style={{ background: '#132634', borderRadius: 14, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontWeight: 800, color: item.type === 'win' ? '#00e701' : 'white' }}>
+                  <div
+                    key={`${item.type}-${item.levels}-${index}`}
+                    style={{
+                      background: '#132634',
+                      borderRadius: 14,
+                      padding: 14,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          color: item.type === 'win' ? '#00e701' : 'white',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         {item.type === 'lose' ? 'Hit' : `x${formatMult(item.multiplier)}`}
                       </div>
-                      <div style={{ color: '#b1bad3', fontSize: 13, marginTop: 4 }}>{item.mode.toUpperCase()} · Step {item.levels}</div>
+                      <div
+                        style={{
+                          color: '#b1bad3',
+                          fontSize: 13,
+                          marginTop: 4,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {item.mode.toUpperCase()} · Step {item.levels}
+                      </div>
                     </div>
-                    <div style={{ fontWeight: 900 }}>${formatMoney(item.payout)}</div>
+                    <div style={{ fontWeight: 900, flexShrink: 0 }}>${formatMoney(item.payout)}</div>
                   </div>
                 ))
               )}
@@ -469,18 +655,32 @@ export default function ChickenCrossPage() {
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 24,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 24,
             border: '1px solid rgba(255,255,255,0.06)',
             boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
             display: 'flex',
             flexDirection: 'column',
+            minWidth: 0,
+            order: isMobile ? 1 : 2
           }}
         >
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            <SummaryItem label="Step" value={`${currentStep}/${LEVELS}`} />
-            <SummaryItem label="Multiplier" value={`x${formatMult(currentMultiplier)}`} accent="#00e701" />
-            <SummaryItem label="Payout" value={`$${formatMoney(currentPayout)}`} />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+              gap: 12,
+              marginBottom: 20
+            }}
+          >
+            <SummaryItem label="Step" value={`${currentStep}/${LEVELS}`} isMobile={isMobile} />
+            <SummaryItem
+              label="Multiplier"
+              value={`x${formatMult(currentMultiplier)}`}
+              accent="#00e701"
+              isMobile={isMobile}
+            />
+            <SummaryItem label="Payout" value={`$${formatMoney(currentPayout)}`} isMobile={isMobile} />
           </div>
 
           <div
@@ -488,9 +688,9 @@ export default function ChickenCrossPage() {
               background: '#22283e',
               borderRadius: 22,
               border: '1px solid rgba(255,255,255,0.05)',
-              height: 400,
+              height: sceneHeight,
               width: '100%',
-              maxWidth: 700,
+              maxWidth: isMobile ? '100%' : 700,
               margin: '0 auto',
               overflow: 'hidden',
               boxShadow: 'inset 0 10px 40px rgba(0,0,0,0.5)',
@@ -501,13 +701,16 @@ export default function ChickenCrossPage() {
               style={{
                 display: 'flex',
                 height: '100%',
-                width: LEVELS * 140,
+                width: LEVELS * laneWidth,
                 transform: `translateX(-${shiftX}px)`,
                 transition: 'transform 0.4s ease',
                 position: 'relative'
               }}
             >
-              <div className={`chicken ${phase === 'lost' ? 'chicken-splat' : ''}`} style={{ left: chickenX }}>
+              <div
+                className={`chicken ${phase === 'lost' ? 'chicken-splat' : ''}`}
+                style={{ left: chickenX }}
+              >
                 🐔
               </div>
 
@@ -541,9 +744,10 @@ export default function ChickenCrossPage() {
                   <div
                     key={i}
                     style={{
-                      width: 140,
+                      width: laneWidth,
                       height: '100%',
-                      borderRight: i === LEVELS - 1 ? 'none' : '4px dashed rgba(255,255,255,0.15)',
+                      borderRight:
+                        i === LEVELS - 1 ? 'none' : `${isMobile ? 2 : 4}px dashed rgba(255,255,255,0.15)`,
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -559,25 +763,32 @@ export default function ChickenCrossPage() {
                       </div>
                     )}
 
-                    {isKillerCar && (
-                      <div className="killer-car">🚓</div>
-                    )}
+                    {isKillerCar && <div className="killer-car">🚓</div>}
 
                     {col.resolved && col.won && (
-                      <div style={{ position: 'absolute', top: 120, fontSize: 32, zIndex: 10 }}>🚧</div>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: isMobile ? 78 : 120,
+                          fontSize: isMobile ? 20 : 32,
+                          zIndex: 10
+                        }}
+                      >
+                        🚧
+                      </div>
                     )}
 
                     <button
                       onClick={crossLane}
                       disabled={!isCurrentLane || busy || col.resolved}
                       style={{
-                        width: 90,
-                        height: 90,
+                        width: manholeSize,
+                        height: manholeSize,
                         borderRadius: '50%',
                         background: manholeBg,
                         border: manholeBorder,
                         color: isCurrentLane ? '#00e701' : 'white',
-                        fontSize: 13,
+                        fontSize: isMobile ? 10 : 13,
                         fontWeight: 900,
                         display: 'flex',
                         alignItems: 'center',
@@ -585,10 +796,13 @@ export default function ChickenCrossPage() {
                         cursor: isCurrentLane && !busy && !col.resolved ? 'pointer' : 'default',
                         transition: 'all 0.15s ease',
                         boxShadow: shadow,
-                        zIndex: 5
+                        zIndex: 5,
+                        padding: isMobile ? '4px' : '6px',
+                        textAlign: 'center',
+                        lineHeight: 1.2
                       }}
                       onMouseEnter={(e) => {
-                        if (isCurrentLane && !busy && !col.resolved) {
+                        if (isCurrentLane && !busy && !col.resolved && !isMobile) {
                           e.currentTarget.style.transform = 'scale(1.1)';
                         }
                       }}
@@ -606,7 +820,15 @@ export default function ChickenCrossPage() {
             </div>
           </div>
 
-          <div style={{ marginTop: 24, textAlign: 'center', color: '#b1bad3' }}>
+          <div
+            style={{
+              marginTop: 24,
+              textAlign: 'center',
+              color: '#b1bad3',
+              fontSize: isMobile ? 14 : 15,
+              lineHeight: 1.7
+            }}
+          >
             Press the glowing manhole to advance. Be careful, a car might cross!
           </div>
         </div>
@@ -615,11 +837,43 @@ export default function ChickenCrossPage() {
   );
 }
 
-function SummaryItem({ label, value, accent = 'white' }) {
+function SummaryItem({ label, value, accent = 'white', isMobile = false }) {
   return (
-    <div style={{ background: '#132634', borderRadius: 16, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)', flex: 1 }}>
-      <span style={{ color: '#b1bad3', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{label}</span>
-      <span style={{ color: accent, fontWeight: 900, fontSize: 18 }}>{value}</span>
+    <div
+      style={{
+        background: '#132634',
+        borderRadius: 16,
+        padding: isMobile ? '14px 10px' : '16px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '1px solid rgba(255,255,255,0.05)',
+        minWidth: 0
+      }}
+    >
+      <span
+        style={{
+          color: '#b1bad3',
+          fontWeight: 700,
+          fontSize: isMobile ? 12 : 13,
+          marginBottom: 6,
+          textAlign: 'center'
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          color: accent,
+          fontWeight: 900,
+          fontSize: isMobile ? 16 : 18,
+          textAlign: 'center',
+          wordBreak: 'break-word'
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -636,6 +890,56 @@ const inputStyle = {
 };
 
 const selectStyle = { ...inputStyle, cursor: 'pointer' };
-const actionBtn = { background: '#233847', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '0 20px', cursor: 'pointer', fontWeight: 800, fontSize: 16 };
-const primaryBtn = { width: '100%', borderRadius: 14, background: '#00e701', color: 'black', fontWeight: 900, padding: '15px 16px', border: 'none', cursor: 'pointer', marginTop: 18, transition: 'transform 0.05s ease' };
-const cashoutBtn = { width: '100%', borderRadius: 14, background: '#2f4553', color: 'white', fontWeight: 800, padding: '15px 16px', border: 'none', cursor: 'pointer', marginTop: 10 };
+
+const actionBtn = {
+  background: '#233847',
+  color: 'white',
+  border: '1px solid rgba(255,255,255,0.06)',
+  borderRadius: 12,
+  cursor: 'pointer',
+  fontWeight: 800,
+  fontSize: 16
+};
+
+const primaryBtn = {
+  width: '100%',
+  borderRadius: 14,
+  background: '#00e701',
+  color: 'black',
+  fontWeight: 900,
+  padding: '15px 16px',
+  border: 'none',
+  cursor: 'pointer',
+  marginTop: 18,
+  transition: 'transform 0.05s ease'
+};
+
+const cashoutBtn = {
+  width: '100%',
+  borderRadius: 14,
+  background: '#2f4553',
+  color: 'white',
+  fontWeight: 800,
+  padding: '15px 16px',
+  border: 'none',
+  cursor: 'pointer',
+  marginTop: 10
+};
+
+const statRow = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12
+};
+
+const statLabel = {
+  color: '#b1bad3'
+};
+
+const statValue = {
+  color: 'white',
+  fontWeight: 800,
+  minWidth: 0,
+  textAlign: 'right'
+};
