@@ -6,119 +6,74 @@ const router = express.Router();
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 
-const ALLOWED_GAMES = new Set([
-  'plinko',
-  'mines',
-  'keno',
-  'dice',
-  'dragonTower',
-  'chickenCross'
-]);
+const activeRounds = new Map();
 
-function normalizeGame(game) {
-  const value = String(game || 'unknown').trim();
-  return ALLOWED_GAMES.has(value) ? value : 'unknown';
+function makeRoundKey(userId, roundId) {
+  return `${userId}:${roundId}`;
 }
 
-function normalizeUsername(username) {
-  return String(username || '').trim();
-}
-
-async function ensureUser(userId, username = '', session = null) {
-  const cleanUsername = normalizeUsername(username);
-
-  const update = {
-    $setOnInsert: {
-      userId,
-      // لاحظ: شلنا الـ username من هنا عشان ما يصير تعارض
-      balance: 10000, 
-      totalWagered: 0,
-      totalWon: 0
-    }
-  };
-
-  // الـ username بيتحدث أو ينضاف من هنا فقط
-  if (cleanUsername) {
-    update.$set = { username: cleanUsername };
-  }
-
-  await User.updateOne({ userId }, update, {
-    upsert: true,
-    session
-  });
-}
 router.post('/bet', async (req, res) => {
   const session = await mongoose.startSession();
 
   try {
     const {
       userId,
-      username = '',
       amount,
-      game = 'unknown',
-      reason = 'game bet',
-      meta = {}
+      game = 'unknown'
     } = req.body;
 
-    const stake = Number(amount);
-    const cleanUsername = normalizeUsername(username);
-    const normalizedGame = normalizeGame(game);
+    const betAmount = Number(amount);
 
-    if (!userId || !Number.isFinite(stake) || stake <= 0) {
+    if (!userId || !Number.isFinite(betAmount) || betAmount <= 0) {
       return res.status(400).json({ ok: false, error: 'Invalid input' });
     }
 
     let responsePayload = null;
 
     await session.withTransaction(async () => {
-      await ensureUser(userId, cleanUsername, session);
-
-      const user = await User.findOneAndUpdate(
-        {
-          userId,
-          balance: { $gte: stake }
-        },
-        {
-          $inc: {
-            balance: -stake,
-            totalWagered: stake
-          },
-          ...(cleanUsername ? { $set: { username: cleanUsername } } : {})
-        },
-        {
-          new: true,
-          session
-        }
-      );
+      let user = await User.findOne({ userId }).session(session);
 
       if (!user) {
-        throw new Error('INSUFFICIENT_BALANCE');
+        user = await User.create(
+          [{ userId, wallet: 0 }],
+          { session }
+        ).then((docs) => docs[0]);
       }
 
-      const roundId = crypto.randomUUID();
+      if ((user.wallet || 0) < betAmount) {
+        throw new Error('INSUFFICIENT_FUNDS');
+      }
+
+      user.wallet -= betAmount;
+      await user.save({ session });
 
       await Transaction.create(
         [
           {
             userId,
-            game: normalizedGame,
-            roundId,
-            type: 'bet',
-            amount: stake,
-            reason,
-            balanceAfter: user.balance,
-            status: 'open',
-            result: 'pending',
-            meta
+            amount: -betAmount,
+            reason: `🎰 Bet on ${game}`,
+            timestamp: new Date()
           }
         ],
         { session }
       );
 
+      const roundId = crypto.randomUUID();
+
+      activeRounds.set(
+        makeRoundKey(userId, roundId),
+        {
+          userId,
+          game,
+          betAmount
+        }
+      );
+
       responsePayload = {
         ok: true,
         roundId,
-        balance: user.balance
+        balance: user.wallet
       };
     });
 
@@ -126,7 +81,7 @@ router.post('/bet', async (req, res) => {
   } catch (error) {
     console.error('POST /games/bet error:', error);
 
-    if (error.message === 'INSUFFICIENT_BALANCE') {
+    if (error.message === 'INSUFFICIENT_FUNDS') {
       return res.status(400).json({ ok: false, error: 'Insufficient balance' });
     }
 
@@ -142,118 +97,47 @@ router.post('/settle', async (req, res) => {
   try {
     const {
       userId,
-      username = '',
       roundId,
       payout = 0,
-      game,
-      reason = 'game payout',
-      result,
-      finalState = {}
+      game = 'unknown'
     } = req.body;
 
-    const cleanUsername = normalizeUsername(username);
-    const cashout = Number(payout);
+    const finalPayout = Number(payout);
 
-    if (!userId || !roundId || !Number.isFinite(cashout) || cashout < 0) {
+    if (!userId || !roundId || !Number.isFinite(finalPayout) || finalPayout < 0) {
       return res.status(400).json({ ok: false, error: 'Invalid input' });
+    }
+
+    const roundKey = makeRoundKey(userId, roundId);
+    const round = activeRounds.get(roundKey);
+
+    if (!round) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Round not found or already settled'
+      });
     }
 
     let responsePayload = null;
 
     await session.withTransaction(async () => {
-      const betTx = await Transaction.findOneAndUpdate(
-        {
-          userId,
-          roundId,
-          type: 'bet',
-          status: 'open'
-        },
-        {
-          $set: {
-            status: 'closed',
-            settledAt: new Date()
-          }
-        },
-        {
-          new: true,
-          session
-        }
-      );
-
-      if (!betTx) {
-        throw new Error('ROUND_NOT_FOUND_OR_SETTLED');
-      }
-
-      const normalizedGame = normalizeGame(game || betTx.game);
-      const net = cashout - betTx.amount;
-
-      const ledgerResult =
-        ['win', 'loss', 'cashout'].includes(String(result))
-          ? String(result)
-          : cashout <= 0
-          ? 'loss'
-          : cashout < betTx.amount
-          ? 'cashout'
-          : 'win';
-
-      const inc = {
-        [`stats.${normalizedGame}.played`]: 1,
-        [`stats.${normalizedGame}.profit`]: net
-      };
-
-      if (net >= 0) {
-        inc[`stats.${normalizedGame}.wins`] = 1;
-      } else {
-        inc[`stats.${normalizedGame}.losses`] = 1;
-      }
-
-      if (cashout > 0) {
-        inc.balance = cashout;
-        inc.totalWon = cashout;
-      }
-
-      const user = await User.findOneAndUpdate(
-        { userId },
-        {
-          $inc: inc,
-          ...(cleanUsername ? { $set: { username: cleanUsername } } : {})
-        },
-        {
-          new: true,
-          session
-        }
-      );
+      const user = await User.findOne({ userId }).session(session);
 
       if (!user) {
         throw new Error('USER_NOT_FOUND');
       }
 
-      await Transaction.updateOne(
-        { _id: betTx._id },
-        {
-          $set: {
-            game: normalizedGame,
-            result: ledgerResult
-          }
-        },
-        { session }
-      );
+      if (finalPayout > 0) {
+        user.wallet += finalPayout;
+        await user.save({ session });
 
-      if (cashout > 0) {
         await Transaction.create(
           [
             {
               userId,
-              game: normalizedGame,
-              roundId,
-              type: 'payout',
-              amount: cashout,
-              reason,
-              balanceAfter: user.balance,
-              status: 'closed',
-              result: ledgerResult,
-              meta: finalState,
-              settledAt: new Date()
+              amount: finalPayout,
+              reason: `🎰 ${game} payout`,
+              timestamp: new Date()
             }
           ],
           { session }
@@ -262,25 +146,15 @@ router.post('/settle', async (req, res) => {
 
       responsePayload = {
         ok: true,
-        roundId,
-        result: ledgerResult,
-        balance: user.balance,
-        totalWagered: user.totalWagered,
-        totalWon: user.totalWon,
-        stats: user.stats
+        balance: user.wallet
       };
     });
+
+    activeRounds.delete(roundKey);
 
     return res.json(responsePayload);
   } catch (error) {
     console.error('POST /games/settle error:', error);
-
-    if (error.message === 'ROUND_NOT_FOUND_OR_SETTLED') {
-      return res.status(404).json({
-        ok: false,
-        error: 'Round not found or already settled'
-      });
-    }
 
     if (error.message === 'USER_NOT_FOUND') {
       return res.status(404).json({ ok: false, error: 'User not found' });
