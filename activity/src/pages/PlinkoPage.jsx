@@ -5,6 +5,7 @@ import { placeBet, settleGame } from '../lib/api';
 const ROW_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16];
 const RISK_OPTIONS = ['low', 'medium', 'high'];
 const RTP = 0.97;
+const MOBILE_BREAKPOINT = 820;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -77,13 +78,21 @@ function buildMultipliers(rows, risk) {
   });
 }
 
-function getBoardMetrics(rows) {
-  const width = 760;
-  const xStep = Math.min(44, 620 / (rows + 2));
-  const rowSpacing = rows >= 14 ? 30 : 34;
-  const topY = 70;
-  const bottomY = topY + rows * rowSpacing + 64;
-  const height = bottomY + 78;
+function getBoardMetrics(rows, isMobile = false) {
+  const width = isMobile ? 420 : 760;
+  const xStep = isMobile
+    ? Math.min(24, 330 / (rows + 2))
+    : Math.min(44, 620 / (rows + 2));
+  const rowSpacing = isMobile
+    ? rows >= 14
+      ? 18
+      : 21
+    : rows >= 14
+    ? 30
+    : 34;
+  const topY = isMobile ? 42 : 70;
+  const bottomY = topY + rows * rowSpacing + (isMobile ? 38 : 64);
+  const height = bottomY + (isMobile ? 52 : 78);
   const centerX = width / 2;
 
   return {
@@ -97,13 +106,13 @@ function getBoardMetrics(rows) {
   };
 }
 
-function getPegPositions(rows) {
-  const { centerX, xStep, rowSpacing, topY, width, height } = getBoardMetrics(rows);
+function getPegPositions(rows, isMobile = false) {
+  const { centerX, xStep, rowSpacing, topY, width, height } = getBoardMetrics(rows, isMobile);
   const pegs = [];
 
   for (let row = 1; row <= rows; row++) {
     const count = row;
-    const y = topY + row * rowSpacing - 12;
+    const y = topY + row * rowSpacing - (isMobile ? 8 : 12);
 
     for (let i = 0; i < count; i++) {
       const x = centerX + (i - (count - 1) / 2) * xStep;
@@ -119,8 +128,8 @@ function getPegPositions(rows) {
   return pegs;
 }
 
-function getBucketCenters(rows) {
-  const { centerX, xStep, bottomY, width, height } = getBoardMetrics(rows);
+function getBucketCenters(rows, isMobile = false) {
+  const { centerX, xStep, bottomY, width, height } = getBoardMetrics(rows, isMobile);
 
   return Array.from({ length: rows + 1 }, (_, i) => {
     const x = centerX + (i - rows / 2) * xStep;
@@ -133,15 +142,18 @@ function getBucketCenters(rows) {
   });
 }
 
-function buildPathPoints(bits, rows) {
-  const { centerX, xStep, rowSpacing, topY, bottomY, width, height } = getBoardMetrics(rows);
+function buildPathPoints(bits, rows, isMobile = false) {
+  const { centerX, xStep, rowSpacing, topY, bottomY, width, height } = getBoardMetrics(
+    rows,
+    isMobile
+  );
   const points = [];
 
   points.push({
     x: centerX,
-    y: 18,
+    y: isMobile ? 12 : 18,
     left: `${(centerX / width) * 100}%`,
-    top: `${(18 / height) * 100}%`
+    top: `${((isMobile ? 12 : 18) / height) * 100}%`
   });
 
   let rights = 0;
@@ -149,7 +161,7 @@ function buildPathPoints(bits, rows) {
   for (let step = 1; step <= rows; step++) {
     rights += bits[step - 1];
     const x = centerX + (rights - step / 2) * xStep;
-    const y = topY + step * rowSpacing - 2;
+    const y = topY + step * rowSpacing - (isMobile ? 1 : 2);
 
     points.push({
       x,
@@ -164,9 +176,9 @@ function buildPathPoints(bits, rows) {
 
   points.push({
     x: finalX,
-    y: bottomY - 8,
+    y: bottomY - (isMobile ? 6 : 8),
     left: `${(finalX / width) * 100}%`,
-    top: `${((bottomY - 8) / height) * 100}%`
+    top: `${((bottomY - (isMobile ? 6 : 8)) / height) * 100}%`
   });
 
   return {
@@ -225,11 +237,25 @@ export default function PlinkoPage() {
   const [history, setHistory] = useState([]);
   const [activeBucket, setActiveBucket] = useState(null);
   const [balls, setBalls] = useState([]);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const multipliers = useMemo(() => buildMultipliers(rows, risk), [rows, risk]);
-  const pegs = useMemo(() => getPegPositions(rows), [rows]);
-  const buckets = useMemo(() => getBucketCenters(rows), [rows]);
-  const metrics = useMemo(() => getBoardMetrics(rows), [rows]);
+  const pegs = useMemo(() => getPegPositions(rows, isMobile), [rows, isMobile]);
+  const buckets = useMemo(() => getBucketCenters(rows, isMobile), [rows, isMobile]);
+  const metrics = useMemo(() => getBoardMetrics(rows, isMobile), [rows, isMobile]);
 
   const potentialBest = useMemo(() => {
     const max = Math.max(...multipliers);
@@ -262,16 +288,10 @@ export default function PlinkoPage() {
 
     const ballId = Date.now() + Math.random();
 
-    setBalls((prev) => [...prev, { id: ballId, left: '50%', top: '4%' }]);
+    setBalls((prev) => [...prev, { id: ballId, left: '50%', top: isMobile ? '3%' : '4%' }]);
     setMessage('Placing bet and dropping ball...');
 
-    const betRes = await placeBet(
-      undefined,
-      amount,
-      'plinko',
-      'plinko bet',
-      { risk, rows }
-    );
+    const betRes = await placeBet(undefined, amount, 'plinko', 'plinko bet', { risk, rows });
 
     if (!betRes.ok) {
       setMessage(betRes.error || 'Bet failed');
@@ -284,7 +304,7 @@ export default function PlinkoPage() {
     const currentRoundId = betRes.roundId;
 
     const bits = Array.from({ length: rows }, () => (Math.random() < 0.5 ? 0 : 1));
-    const built = buildPathPoints(bits, rows);
+    const built = buildPathPoints(bits, rows, isMobile);
     const bucketIndex = built.bucketIndex;
     const multiplier = multipliers[bucketIndex];
     const payout = Math.floor(amount * multiplier);
@@ -293,7 +313,7 @@ export default function PlinkoPage() {
       setBalls((prev) =>
         prev.map((b) => (b.id === ballId ? { ...b, left: point.left, top: point.top } : b))
       );
-      await sleep(115);
+      await sleep(isMobile ? 90 : 115);
     }
 
     setActiveBucket(bucketIndex);
@@ -338,17 +358,20 @@ export default function PlinkoPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '390px 1fr',
-          gap: 24
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(330px, 390px) minmax(0, 1fr)',
+          gap: isMobile ? 16 : 24,
+          alignItems: 'start'
         }}
       >
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 20,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 20,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 2 : 1
           }}
         >
           <div
@@ -356,40 +379,49 @@ export default function PlinkoPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 18
+              marginBottom: 18,
+              gap: 12
             }}
           >
-            <div style={{ fontSize: 24, fontWeight: 900 }}>Manual</div>
+            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 900 }}>Manual</div>
             <div
               style={{
                 color: isDropping ? '#00e701' : '#b1bad3',
                 fontSize: 12,
-                fontWeight: 800
+                fontWeight: 800,
+                flexShrink: 0
               }}
             >
               {isDropping ? 'DROPPING' : 'READY'}
             </div>
           </div>
 
-          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>
-            Bet Amount
-          </div>
+          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr 80px 80px' : '1fr 88px 88px',
+              gap: 8,
+              marginBottom: 18
+            }}
+          >
             <input
               type="number"
               min="1"
               value={bet}
               onChange={(e) => setBet(e.target.value)}
-              style={{ ...inputStyle, flex: 1 }}
+              style={{ ...inputStyle, minWidth: 0 }}
             />
-            <button onClick={divideBet} style={actionBtn}>1/2</button>
-            <button onClick={multiplyBet} style={actionBtn}>2x</button>
+            <button onClick={divideBet} style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}>
+              1/2
+            </button>
+            <button onClick={multiplyBet} style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}>
+              2x
+            </button>
           </div>
 
-          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>
-            Risk
-          </div>
+          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Risk</div>
           <select
             value={risk}
             onChange={(e) => setRisk(e.target.value)}
@@ -403,9 +435,7 @@ export default function PlinkoPage() {
             ))}
           </select>
 
-          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>
-            Rows
-          </div>
+          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Rows</div>
           <select
             value={rows}
             onChange={(e) => setRows(Number(e.target.value))}
@@ -419,12 +449,48 @@ export default function PlinkoPage() {
             ))}
           </select>
 
+          <button
+            onClick={dropBall}
+            disabled={isDropping}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#00e701',
+              color: 'black',
+              fontWeight: 900,
+              padding: '15px 16px',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 18,
+              transition: 'transform 0.05s ease',
+              opacity: isDropping ? 0.7 : 1,
+              fontSize: isMobile ? 15 : 16
+            }}
+            onMouseDown={(e) => !isDropping && (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            {isDropping ? 'Dropping...' : 'Drop Ball'}
+          </button>
+
+          <div
+            style={{
+              marginTop: 16,
+              color: result ? '#7df9a6' : '#b1bad3',
+              minHeight: 24,
+              lineHeight: 1.6,
+              fontSize: isMobile ? 14 : 15
+            }}
+          >
+            {message}
+          </div>
+
           <div
             style={{
               marginTop: 18,
               background: '#132634',
               borderRadius: 18,
-              padding: 16,
+              padding: isMobile ? 14 : 16,
               border: '1px solid rgba(255,255,255,0.05)',
               lineHeight: 1.9
             }}
@@ -457,42 +523,8 @@ export default function PlinkoPage() {
             </div>
           </div>
 
-          <button
-            onClick={dropBall}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#00e701',
-              color: 'black',
-              fontWeight: 900,
-              padding: '15px 16px',
-              border: 'none',
-              cursor: 'pointer',
-              marginTop: 18,
-              transition: 'transform 0.05s ease',
-            }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.97)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            Drop Ball
-          </button>
-
-          <div
-            style={{
-              marginTop: 16,
-              color: result ? '#7df9a6' : '#b1bad3',
-              minHeight: 24,
-              lineHeight: 1.6
-            }}
-          >
-            {message}
-          </div>
-
           <div style={{ marginTop: 18 }}>
-            <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>
-              Last Results
-            </div>
+            <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Last Results</div>
 
             <div style={{ display: 'grid', gap: 10 }}>
               {history.length === 0 ? (
@@ -516,16 +548,35 @@ export default function PlinkoPage() {
                       padding: 14,
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      gap: 12
                     }}
                   >
-                    <div>
-                      <div style={{ fontWeight: 800 }}>x{item.multiplier}</div>
-                      <div style={{ color: '#b1bad3', fontSize: 13, marginTop: 4 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        x{item.multiplier}
+                      </div>
+                      <div
+                        style={{
+                          color: '#b1bad3',
+                          fontSize: 13,
+                          marginTop: 4,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         Bet ${item.amount}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 900 }}>${item.payout}</div>
+                    <div style={{ fontWeight: 900, flexShrink: 0 }}>${item.payout}</div>
                   </div>
                 ))
               )}
@@ -536,10 +587,12 @@ export default function PlinkoPage() {
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 24,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 24,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 1 : 2
           }}
         >
           <div
@@ -547,7 +600,7 @@ export default function PlinkoPage() {
               position: 'relative',
               width: '100%',
               height: metrics.height,
-              minHeight: 520,
+              minHeight: isMobile ? 300 : 520,
               overflow: 'hidden',
               borderRadius: 22,
               background:
@@ -561,8 +614,8 @@ export default function PlinkoPage() {
                   position: 'absolute',
                   left: peg.left,
                   top: peg.top,
-                  width: 10,
-                  height: 10,
+                  width: isMobile ? 6 : 10,
+                  height: isMobile ? 6 : 10,
                   borderRadius: '50%',
                   transform: 'translate(-50%, -50%)',
                   background: 'linear-gradient(180deg, #e8edf2, #9fb0bd)',
@@ -578,8 +631,8 @@ export default function PlinkoPage() {
                   position: 'absolute',
                   left: ball.left,
                   top: ball.top,
-                  width: 22,
-                  height: 22,
+                  width: isMobile ? 14 : 22,
+                  height: isMobile ? 14 : 22,
                   borderRadius: '50%',
                   transform: 'translate(-50%, -50%)',
                   background: 'radial-gradient(circle at 35% 35%, #ffffff, #ff4d4d 58%, #b31c1c 100%)',
@@ -602,15 +655,15 @@ export default function PlinkoPage() {
                     left: bucket.left,
                     top: bucket.top,
                     transform: 'translate(-50%, 0)',
-                    width: Math.max(30, 500 / (rows + 1)),
-                    minWidth: 30,
-                    height: 68,
-                    borderRadius: 14,
+                    width: isMobile ? Math.max(18, 255 / (rows + 1)) : Math.max(30, 500 / (rows + 1)),
+                    minWidth: isMobile ? 18 : 30,
+                    height: isMobile ? 34 : 68,
+                    borderRadius: isMobile ? 8 : 14,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 900,
-                    fontSize: rows >= 14 ? 11 : 12,
+                    fontSize: isMobile ? (rows >= 14 ? 7 : 8) : rows >= 14 ? 11 : 12,
                     transition: 'all 0.16s ease',
                     ...styleSet
                   }}
@@ -625,7 +678,7 @@ export default function PlinkoPage() {
             style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${multipliers.length}, 1fr)`,
-              gap: 8,
+              gap: isMobile ? 4 : 8,
               marginTop: 18
             }}
           >
@@ -635,12 +688,12 @@ export default function PlinkoPage() {
                 style={{
                   background: activeBucket === index ? '#233f2e' : '#132634',
                   border: '1px solid rgba(255,255,255,0.05)',
-                  borderRadius: 12,
-                  padding: '10px 6px',
+                  borderRadius: isMobile ? 8 : 12,
+                  padding: isMobile ? '6px 2px' : '10px 6px',
                   textAlign: 'center',
                   fontWeight: 800,
                   color: activeBucket === index ? '#7df9a6' : 'white',
-                  fontSize: 13
+                  fontSize: isMobile ? 9 : 13
                 }}
               >
                 x{multiplier}
@@ -678,7 +731,6 @@ const actionBtn = {
   color: 'white',
   border: '1px solid rgba(255,255,255,0.06)',
   borderRadius: 12,
-  padding: '0 20px',
   cursor: 'pointer',
   fontWeight: 800,
   fontSize: 16
@@ -697,5 +749,7 @@ const statLabel = {
 
 const statValue = {
   color: 'white',
-  fontWeight: 800
+  fontWeight: 800,
+  minWidth: 0,
+  textAlign: 'right'
 };
