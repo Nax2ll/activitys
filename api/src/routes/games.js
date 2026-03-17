@@ -30,23 +30,27 @@ async function ensureUser(userId, username = '', session = null) {
   const update = {
     $setOnInsert: {
       userId,
-      // لاحظ: شلنا الـ username من هنا عشان ما يصير تعارض
-      balance: 10000, 
+      wallet: 0,
       totalWagered: 0,
-      totalWon: 0
+      totalWon: 0,
+      stats: {}
     }
   };
 
-  // الـ username بيتحدث أو ينضاف من هنا فقط
   if (cleanUsername) {
     update.$set = { username: cleanUsername };
   }
 
-  await User.updateOne({ userId }, update, {
-    upsert: true,
-    session
-  });
+  await User.updateOne(
+    { userId },
+    update,
+    {
+      upsert: true,
+      session
+    }
+  );
 }
+
 router.post('/bet', async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -76,11 +80,11 @@ router.post('/bet', async (req, res) => {
       const user = await User.findOneAndUpdate(
         {
           userId,
-          balance: { $gte: stake }
+          wallet: { $gte: stake }
         },
         {
           $inc: {
-            balance: -stake,
+            wallet: -stake,
             totalWagered: stake
           },
           ...(cleanUsername ? { $set: { username: cleanUsername } } : {})
@@ -106,7 +110,7 @@ router.post('/bet', async (req, res) => {
             type: 'bet',
             amount: stake,
             reason,
-            balanceAfter: user.balance,
+            balanceAfter: user.wallet, // تقدر تغيّر الاسم لاحقًا إلى walletAfter إذا ودك
             status: 'open',
             result: 'pending',
             meta
@@ -118,7 +122,8 @@ router.post('/bet', async (req, res) => {
       responsePayload = {
         ok: true,
         roundId,
-        balance: user.balance
+        balance: user.wallet,
+        wallet: user.wallet
       };
     });
 
@@ -208,7 +213,7 @@ router.post('/settle', async (req, res) => {
       }
 
       if (cashout > 0) {
-        inc.balance = cashout;
+        inc.wallet = cashout;
         inc.totalWon = cashout;
       }
 
@@ -249,7 +254,7 @@ router.post('/settle', async (req, res) => {
               type: 'payout',
               amount: cashout,
               reason,
-              balanceAfter: user.balance,
+              balanceAfter: user.wallet,
               status: 'closed',
               result: ledgerResult,
               meta: finalState,
@@ -264,7 +269,8 @@ router.post('/settle', async (req, res) => {
         ok: true,
         roundId,
         result: ledgerResult,
-        balance: user.balance,
+        balance: user.wallet,
+        wallet: user.wallet,
         totalWagered: user.totalWagered,
         totalWon: user.totalWon,
         stats: user.stats
