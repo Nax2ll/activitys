@@ -8,22 +8,15 @@ export default function BalanceBar() {
 
   useEffect(() => {
     let mounted = true;
-    let intervalId = null;
 
     async function load() {
       try {
-        const data = await Promise.race([
-          getBalance(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Balance request timed out')), 12000)
-          )
-        ]);
+        const data = await getBalance();
 
         if (!mounted) return;
 
         if (data?.ok) {
-          const nextBalance = Number(data.wallet ?? data.balance) || 0;
-          setBalance(nextBalance);
+          setBalance(Number(data.wallet ?? data.balance) || 0);
           setStatus('ready');
           setErrorText('');
         } else {
@@ -39,31 +32,19 @@ export default function BalanceBar() {
 
     function handleBalanceUpdated(event) {
       if (!mounted) return;
-
-      const nextBalance = Number(
-        event?.detail?.wallet ?? event?.detail?.balance
-      );
-
-      if (!Number.isFinite(nextBalance)) return;
-
-      setBalance(nextBalance);
+      const next = Number(event?.detail?.wallet ?? event?.detail?.balance);
+      if (!Number.isFinite(next)) return;
+      setBalance(next);
       setStatus('ready');
       setErrorText('');
     }
 
     load();
-
     window.addEventListener('casino:balance-updated', handleBalanceUpdated);
-    window.addEventListener('focus', load);
-
-    // مزامنة خارجية أخف
-    intervalId = window.setInterval(load, 10000);
 
     return () => {
       mounted = false;
       window.removeEventListener('casino:balance-updated', handleBalanceUpdated);
-      window.removeEventListener('focus', load);
-      if (intervalId) window.clearInterval(intervalId);
     };
   }, []);
 
