@@ -10,8 +10,13 @@ const app = express();
 const PORT = Number(process.env.PORT) || 4000;
 const HOST = '0.0.0.0';
 
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://activitys.naelhimself.workers.dev'
+  ],
+  credentials: false
+}));app.use(express.json());
 
 app.get('/', (req, res) => {
   res.json({ ok: true, message: 'Casino API running' });
