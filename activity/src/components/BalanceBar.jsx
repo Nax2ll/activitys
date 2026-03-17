@@ -10,40 +10,35 @@ export default function BalanceBar() {
     let mounted = true;
 
     async function load() {
-      const data = await getBalance();
+      try {
+        const data = await Promise.race([
+          getBalance(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Balance request timed out')), 12000)
+          )
+        ]);
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (data?.ok) {
-        setBalance(Number(data.balance) || 0);
-        setStatus('ready');
-        setErrorText('');
-      } else {
+        if (data?.ok) {
+          setBalance(Number(data.balance) || 0);
+          setStatus('ready');
+          setErrorText('');
+        } else {
+          setStatus('error');
+          setErrorText(data?.error || 'Unknown error');
+        }
+      } catch (error) {
+        if (!mounted) return;
         setStatus('error');
-        setErrorText(data?.error || 'Unknown error');
+        setErrorText(error?.message || 'Balance load failed');
       }
-    }
-
-    function handleBalanceUpdated(event) {
-      const nextBalance = Number(event?.detail?.balance);
-
-      if (!mounted || !Number.isFinite(nextBalance)) return;
-
-      setBalance(nextBalance);
-      setStatus('ready');
-      setErrorText('');
     }
 
     load();
 
-    window.addEventListener('casino:balance-updated', handleBalanceUpdated);
-
-    const interval = setInterval(load, 15000);
-
     return () => {
       mounted = false;
-      window.removeEventListener('casino:balance-updated', handleBalanceUpdated);
-      clearInterval(interval);
     };
   }, []);
 
