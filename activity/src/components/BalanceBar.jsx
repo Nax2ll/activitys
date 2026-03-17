@@ -8,6 +8,7 @@ export default function BalanceBar() {
 
   useEffect(() => {
     let mounted = true;
+    let intervalId = null;
 
     async function load() {
       try {
@@ -21,7 +22,8 @@ export default function BalanceBar() {
         if (!mounted) return;
 
         if (data?.ok) {
-          setBalance(Number(data.balance) || 0);
+          const nextWallet = Number(data.wallet ?? data.balance) || 0;
+          setBalance(nextWallet);
           setStatus('ready');
           setErrorText('');
         } else {
@@ -35,10 +37,33 @@ export default function BalanceBar() {
       }
     }
 
+    function handleBalanceUpdated(event) {
+      if (!mounted) return;
+
+      const nextWallet = Number(
+        event?.detail?.wallet ?? event?.detail?.balance
+      );
+
+      if (!Number.isFinite(nextWallet)) return;
+
+      setBalance(nextWallet);
+      setStatus('ready');
+      setErrorText('');
+    }
+
     load();
+
+    window.addEventListener('casino:balance-updated', handleBalanceUpdated);
+    window.addEventListener('focus', load);
+
+    // عشان أي تعديل يجي من البوت الثاني أو من مونقو يبان في النشاط
+    intervalId = window.setInterval(load, 2000);
 
     return () => {
       mounted = false;
+      window.removeEventListener('casino:balance-updated', handleBalanceUpdated);
+      window.removeEventListener('focus', load);
+      if (intervalId) window.clearInterval(intervalId);
     };
   }, []);
 
