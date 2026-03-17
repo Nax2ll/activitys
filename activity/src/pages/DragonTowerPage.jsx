@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
 import { placeBet, settleGame } from '../lib/api';
 
 const LEVELS = 9;
 const RTP = 0.98;
+const MOBILE_BREAKPOINT = 820;
 
 const MODE_CONFIG = {
   easy: {
@@ -90,13 +91,27 @@ export default function DragonTowerPage() {
   const [bet, setBet] = useState('10');
   const [mode, setMode] = useState('easy');
   const [tower, setTower] = useState(() => createTower('easy'));
-  const [phase, setPhase] = useState('idle'); // idle | playing | lost | cashed | completed
+  const [phase, setPhase] = useState('idle');
   const [currentLevel, setCurrentLevel] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Choose your mode and start climbing.');
   const [lastPayout, setLastPayout] = useState(0);
   const [history, setHistory] = useState([]);
   const [roundId, setRoundId] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const modeConfig = MODE_CONFIG[mode];
 
@@ -127,6 +142,12 @@ export default function DragonTowerPage() {
   const displayRows = useMemo(() => {
     return [...tower].reverse();
   }, [tower]);
+
+  const nextSafeChance = useMemo(() => {
+    if (phase !== 'playing') return null;
+    const chance = (modeConfig.safeCount / modeConfig.tileCount) * 100;
+    return chance.toFixed(2);
+  }, [phase, modeConfig]);
 
   function multiplyBet() {
     setBet(String((Number(bet) || 0) * 2));
@@ -223,16 +244,18 @@ export default function DragonTowerPage() {
     setRoundId(null);
     setPhase(completed ? 'completed' : 'cashed');
     setLastPayout(payout);
-    setHistory((prev) => [
-      {
-        type: 'win',
-        payout,
-        levels: levelsCleared,
-        multiplier: getMultiplier(mode, levelsCleared),
-        mode
-      },
-      ...prev
-    ].slice(0, 8));
+    setHistory((prev) =>
+      [
+        {
+          type: 'win',
+          payout,
+          levels: levelsCleared,
+          multiplier: getMultiplier(mode, levelsCleared),
+          mode
+        },
+        ...prev
+      ].slice(0, 8)
+    );
     setBusy(false);
     return true;
   }
@@ -271,16 +294,18 @@ export default function DragonTowerPage() {
     setBusy(false);
     setLastPayout(0);
     setMessage('The dragon got you. Round lost.');
-    setHistory((prev) => [
-      {
-        type: 'lose',
-        payout: 0,
-        levels: levelsCleared,
-        multiplier: 0,
-        mode
-      },
-      ...prev
-    ].slice(0, 8));
+    setHistory((prev) =>
+      [
+        {
+          type: 'lose',
+          payout: 0,
+          levels: levelsCleared,
+          multiplier: 0,
+          mode
+        },
+        ...prev
+      ].slice(0, 8)
+    );
   }
 
   async function pickTile(tileIndex) {
@@ -379,17 +404,20 @@ export default function DragonTowerPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '400px 1fr',
-          gap: 24
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(340px, 400px) minmax(0, 1fr)',
+          gap: isMobile ? 16 : 24,
+          alignItems: 'start'
         }}
       >
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 20,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 20,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 2 : 1
           }}
         >
           <div
@@ -397,10 +425,11 @@ export default function DragonTowerPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 18
+              marginBottom: 18,
+              gap: 12
             }}
           >
-            <div style={{ fontSize: 24, fontWeight: 900 }}>Manual</div>
+            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 900 }}>Manual</div>
             <div
               style={{
                 fontSize: 12,
@@ -412,7 +441,8 @@ export default function DragonTowerPage() {
                     ? '#ff8d8d'
                     : phase === 'cashed' || phase === 'completed'
                     ? '#7df9a6'
-                    : '#b1bad3'
+                    : '#b1bad3',
+                flexShrink: 0
               }}
             >
               {phase === 'playing'
@@ -431,19 +461,34 @@ export default function DragonTowerPage() {
             Bet Amount
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr 80px 80px' : '1fr 88px 88px',
+              gap: 8,
+              marginBottom: 18
+            }}
+          >
             <input
               type="number"
               min="1"
               value={bet}
               onChange={(e) => setBet(e.target.value)}
               disabled={phase === 'playing' || busy}
-              style={{ ...inputStyle, flex: 1 }}
+              style={{ ...inputStyle, minWidth: 0 }}
             />
-            <button onClick={divideBet} disabled={phase === 'playing' || busy} style={actionBtn}>
+            <button
+              onClick={divideBet}
+              disabled={phase === 'playing' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
               1/2
             </button>
-            <button onClick={multiplyBet} disabled={phase === 'playing' || busy} style={actionBtn}>
+            <button
+              onClick={multiplyBet}
+              disabled={phase === 'playing' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
               2x
             </button>
           </div>
@@ -451,6 +496,7 @@ export default function DragonTowerPage() {
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>
             Difficulty
           </div>
+
           <select
             value={mode}
             onChange={(e) => {
@@ -458,7 +504,11 @@ export default function DragonTowerPage() {
               resetTowerConfig(e.target.value);
             }}
             disabled={phase === 'playing' || busy}
-            style={{ ...selectStyle, marginBottom: 18, opacity: phase === 'playing' || busy ? 0.6 : 1 }}
+            style={{
+              ...selectStyle,
+              marginBottom: 18,
+              opacity: phase === 'playing' || busy ? 0.6 : 1
+            }}
           >
             {Object.entries(MODE_CONFIG).map(([key, cfg]) => (
               <option key={key} value={key}>
@@ -467,13 +517,97 @@ export default function DragonTowerPage() {
             ))}
           </select>
 
+          <button
+            onClick={startRound}
+            disabled={phase === 'playing' || busy}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#00e701',
+              color: 'black',
+              fontWeight: 900,
+              padding: '15px 16px',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 0,
+              opacity: phase === 'playing' || busy ? 0.65 : 1,
+              transition: 'transform 0.05s ease',
+              fontSize: isMobile ? 15 : 16
+            }}
+            onMouseDown={(e) =>
+              phase !== 'playing' && !busy && (e.currentTarget.style.transform = 'scale(0.97)')
+            }
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            {busy && phase !== 'playing' ? 'Starting...' : phase === 'playing' ? 'Game Running' : 'Bet'}
+          </button>
+
+          <button
+            onClick={cashOut}
+            disabled={phase !== 'playing' || currentLevel <= 0 || busy}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#2f4553',
+              color: 'white',
+              fontWeight: 800,
+              padding: '15px 16px',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 10,
+              opacity: phase !== 'playing' || currentLevel <= 0 || busy ? 0.6 : 1,
+              fontSize: isMobile ? 15 : 16
+            }}
+          >
+            {busy && phase === 'playing' ? 'Processing...' : `Cash Out $${currentPayout}`}
+          </button>
+
+          <button
+            onClick={pickRandomTile}
+            disabled={phase !== 'playing' || busy}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#233847',
+              color: 'white',
+              fontWeight: 700,
+              padding: '13px 16px',
+              border: 'none',
+              cursor: phase === 'playing' && !busy ? 'pointer' : 'default',
+              marginTop: 10,
+              opacity: phase !== 'playing' || busy ? 0.6 : 1,
+              fontSize: isMobile ? 14 : 15
+            }}
+          >
+            Random Pick
+          </button>
+
+          <div
+            style={{
+              marginTop: 16,
+              color:
+                phase === 'lost'
+                  ? '#ff8d8d'
+                  : phase === 'cashed' || phase === 'completed'
+                  ? '#7df9a6'
+                  : '#b1bad3',
+              minHeight: 22,
+              lineHeight: 1.6,
+              fontSize: isMobile ? 14 : 15
+            }}
+          >
+            {message}
+          </div>
+
           <div
             style={{
               background: '#132634',
               borderRadius: 18,
-              padding: 16,
+              padding: isMobile ? 14 : 16,
               border: '1px solid rgba(255,255,255,0.05)',
-              lineHeight: 1.9
+              lineHeight: 1.9,
+              marginTop: 18
             }}
           >
             <div style={statRow}>
@@ -502,100 +636,98 @@ export default function DragonTowerPage() {
               <span style={statLabel}>Next payout</span>
               <span style={statValue}>${nextPayout}</span>
             </div>
+
+            <div style={statRow}>
+              <span style={statLabel}>Next safe chance</span>
+              <span style={statValue}>{nextSafeChance ? `${nextSafeChance}%` : '-'}</span>
+            </div>
+
+            <div style={statRow}>
+              <span style={statLabel}>Last payout</span>
+              <span style={statValue}>${lastPayout}</span>
+            </div>
           </div>
 
-          <button
-            onClick={startRound}
-            disabled={phase === 'playing' || busy}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#00e701',
-              color: 'black',
-              fontWeight: 900,
-              padding: '15px 16px',
-              border: 'none',
-              cursor: 'pointer',
-              marginTop: 18,
-              opacity: phase === 'playing' || busy ? 0.65 : 1,
-              transition: 'transform 0.05s ease',
-            }}
-            onMouseDown={(e) => phase !== 'playing' && !busy && (e.currentTarget.style.transform = 'scale(0.97)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            {busy && phase !== 'playing' ? 'Starting...' : phase === 'playing' ? 'Game Running' : 'Bet'}
-          </button>
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>
+              Last Results
+            </div>
 
-          <button
-            onClick={cashOut}
-            disabled={phase !== 'playing' || currentLevel <= 0 || busy}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#2f4553',
-              color: 'white',
-              fontWeight: 800,
-              padding: '15px 16px',
-              border: 'none',
-              cursor: 'pointer',
-              marginTop: 10,
-              opacity: phase !== 'playing' || currentLevel <= 0 || busy ? 0.6 : 1
-            }}
-          >
-            {busy && phase === 'playing' ? 'Processing...' : `Cash Out $${currentPayout}`}
-          </button>
-
-          <button
-            onClick={pickRandomTile}
-            disabled={phase !== 'playing' || busy}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#233847',
-              color: 'white',
-              fontWeight: 700,
-              padding: '13px 16px',
-              border: 'none',
-              cursor: phase === 'playing' && !busy ? 'pointer' : 'default',
-              marginTop: 10,
-              opacity: phase !== 'playing' || busy ? 0.6 : 1
-            }}
-          >
-            Random Pick
-          </button>
-
-          <div
-            style={{
-              marginTop: 16,
-              color:
-                phase === 'lost'
-                  ? '#ff8d8d'
-                  : phase === 'cashed' || phase === 'completed'
-                  ? '#7df9a6'
-                  : '#b1bad3',
-              minHeight: 22,
-              lineHeight: 1.6
-            }}
-          >
-            {message}
+            <div style={{ display: 'grid', gap: 10 }}>
+              {history.length === 0 ? (
+                <div
+                  style={{
+                    background: '#132634',
+                    borderRadius: 14,
+                    padding: 14,
+                    color: '#b1bad3'
+                  }}
+                >
+                  No climbs yet.
+                </div>
+              ) : (
+                history.map((item, index) => (
+                  <div
+                    key={`${item.type}-${item.levels}-${index}`}
+                    style={{
+                      background: '#132634',
+                      borderRadius: 14,
+                      padding: 14,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          color: item.type === 'win' ? '#00e701' : 'white',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {item.type === 'lose' ? 'Lose' : `Win · x${item.multiplier}`}
+                      </div>
+                      <div
+                        style={{
+                          color: '#b1bad3',
+                          fontSize: 13,
+                          marginTop: 4,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {item.mode.toUpperCase()} · Level {item.levels}
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 900, flexShrink: 0 }}>${item.payout}</div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 24,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 24,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 1 : 2
           }}
         >
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 220px',
-              gap: 24,
+              gridTemplateColumns: isMobile ? '1fr' : '1fr 220px',
+              gap: isMobile ? 16 : 24,
               alignItems: 'start'
             }}
           >
@@ -604,15 +736,15 @@ export default function DragonTowerPage() {
                 background:
                   'radial-gradient(circle at top, rgba(68,98,121,0.38), rgba(15,33,46,0.98) 65%)',
                 borderRadius: 22,
-                padding: '30px 20px',
+                padding: isMobile ? '16px 10px' : '30px 20px',
                 border: '1px solid rgba(255,255,255,0.05)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                minHeight: 760,
+                minHeight: isMobile ? 'auto' : 760
               }}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 4 : 6, width: '100%' }}>
                 {displayRows.map((row) => {
                   const realLevel = row.level;
                   const active = phase === 'playing' && realLevel === currentLevel;
@@ -624,12 +756,14 @@ export default function DragonTowerPage() {
                       style={{
                         display: 'grid',
                         gridTemplateColumns: `repeat(${modeConfig.tileCount}, 1fr)`,
-                        gap: 12,
-                        padding: 8,
-                        borderRadius: 20,
+                        gap: isMobile ? 8 : 12,
+                        padding: isMobile ? 6 : 8,
+                        borderRadius: isMobile ? 16 : 20,
                         border: active ? '2px solid rgba(0, 231, 1, 0.7)' : '2px solid transparent',
                         background: active ? 'rgba(0, 231, 1, 0.05)' : 'transparent',
-                        boxShadow: active ? '0 0 18px rgba(0, 231, 1, 0.25), inset 0 0 10px rgba(0, 231, 1, 0.15)' : 'none',
+                        boxShadow: active
+                          ? '0 0 18px rgba(0, 231, 1, 0.25), inset 0 0 10px rgba(0, 231, 1, 0.15)'
+                          : 'none',
                         transition: 'all 0.2s ease',
                         position: 'relative',
                         zIndex: active ? 2 : 1
@@ -646,8 +780,8 @@ export default function DragonTowerPage() {
                             onClick={() => pickTile(tileIndex)}
                             disabled={!active || busy || row.resolved}
                             style={{
-                              height: 64,
-                              borderRadius: 14,
+                              height: isMobile ? 52 : 64,
+                              borderRadius: isMobile ? 12 : 14,
                               border: isPicked
                                 ? '1px solid rgba(255,255,255,0.18)'
                                 : '1px solid rgba(255,255,255,0.06)',
@@ -659,16 +793,17 @@ export default function DragonTowerPage() {
                                 ? 'linear-gradient(180deg, #223543, #1a2b37)'
                                 : 'linear-gradient(180deg, #2b4150, #233847)',
                               color: 'white',
-                              fontSize: 30,
+                              fontSize: isMobile ? 24 : 30,
                               fontWeight: 900,
                               cursor: active && !busy && !row.resolved ? 'pointer' : 'default',
-                              transition: 'transform 0.12s ease, box-shadow 0.16s ease, background 0.16s ease',
+                              transition:
+                                'transform 0.12s ease, box-shadow 0.16s ease, background 0.16s ease',
                               boxShadow: isPicked
                                 ? '0 10px 20px rgba(0,0,0,0.18)'
                                 : '0 6px 12px rgba(0,0,0,0.12)'
                             }}
                             onMouseEnter={(e) => {
-                              if (active && !busy && !row.resolved) {
+                              if (active && !busy && !row.resolved && !isMobile) {
                                 e.currentTarget.style.transform = 'translateY(-2px)';
                               }
                             }}
@@ -719,7 +854,8 @@ export default function DragonTowerPage() {
                         padding: '12px 14px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between'
+                        justifyContent: 'space-between',
+                        gap: 12
                       }}
                     >
                       <div style={{ fontWeight: 800 }}>L{item.level}</div>
@@ -763,7 +899,6 @@ const actionBtn = {
   color: 'white',
   border: '1px solid rgba(255,255,255,0.06)',
   borderRadius: 12,
-  padding: '0 20px',
   cursor: 'pointer',
   fontWeight: 800,
   fontSize: 16
@@ -782,5 +917,7 @@ const statLabel = {
 
 const statValue = {
   color: 'white',
-  fontWeight: 800
+  fontWeight: 800,
+  minWidth: 0,
+  textAlign: 'right'
 };
