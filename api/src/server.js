@@ -33,8 +33,19 @@ app.post('/token', async (req, res) => {
   try {
     const { code } = req.body;
 
+    console.log('[POST /token] code exists:', Boolean(code));
+    console.log('[POST /token] DISCORD_CLIENT_ID exists:', Boolean(process.env.DISCORD_CLIENT_ID));
+    console.log('[POST /token] DISCORD_CLIENT_SECRET exists:', Boolean(process.env.DISCORD_CLIENT_SECRET));
+
     if (!code) {
       return res.status(400).json({ ok: false, error: 'Missing code' });
+    }
+
+    if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+      return res.status(500).json({
+        ok: false,
+        error: 'Missing Discord OAuth environment variables'
+      });
     }
 
     const params = new URLSearchParams();
@@ -53,10 +64,14 @@ app.post('/token', async (req, res) => {
 
     const data = await response.json();
 
+    console.log('[POST /token] discord status:', response.status);
+    console.log('[POST /token] discord data:', data);
+
     if (!response.ok) {
       return res.status(400).json({
         ok: false,
-        error: data?.error_description || data?.error || 'OAuth exchange failed'
+        error: data?.error_description || data?.error || 'OAuth exchange failed',
+        details: data
       });
     }
 
@@ -66,7 +81,10 @@ app.post('/token', async (req, res) => {
     });
   } catch (error) {
     console.error('POST /token error:', error);
-    return res.status(500).json({ ok: false, error: 'Internal server error' });
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || 'Internal server error'
+    });
   }
 });
 
@@ -74,6 +92,8 @@ app.get('/me', async (req, res) => {
   try {
     const auth = req.headers.authorization || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+
+    console.log('[GET /me] token exists:', Boolean(token));
 
     if (!token) {
       return res.status(401).json({ ok: false, error: 'Missing bearer token' });
@@ -87,10 +107,14 @@ app.get('/me', async (req, res) => {
 
     const data = await response.json();
 
+    console.log('[GET /me] discord status:', response.status);
+    console.log('[GET /me] discord data:', data);
+
     if (!response.ok) {
       return res.status(400).json({
         ok: false,
-        error: data?.message || 'Failed to fetch current user'
+        error: data?.message || 'Failed to fetch current user',
+        details: data
       });
     }
 
@@ -103,7 +127,10 @@ app.get('/me', async (req, res) => {
     });
   } catch (error) {
     console.error('GET /me error:', error);
-    return res.status(500).json({ ok: false, error: 'Internal server error' });
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || 'Internal server error'
+    });
   }
 });
 
