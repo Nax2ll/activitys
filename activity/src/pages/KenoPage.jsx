@@ -66,7 +66,6 @@ function formatMultiplier(value) {
 
 export default function KenoPage() {
   const [bet, setBet] = useState('10');
-  const [pickCount, setPickCount] = useState(4);
   const [selectedNumbers, setSelectedNumbers] = useState([]);
   const [drawnNumbers, setDrawnNumbers] = useState([]);
   const [phase, setPhase] = useState('idle');
@@ -89,6 +88,9 @@ export default function KenoPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // حساب الـ Pick Count بناءً على اختيار اللاعب الفعلي
+  const pickCount = selectedNumbers.length;
+
   const selectedSet = useMemo(() => new Set(selectedNumbers), [selectedNumbers]);
   const drawnSet = useMemo(() => new Set(drawnNumbers), [drawnNumbers]);
 
@@ -101,6 +103,7 @@ export default function KenoPage() {
   const payout = Math.floor((Number(bet) || 0) * multiplier);
 
   const payoutRows = useMemo(() => {
+    if (pickCount === 0) return [];
     return Array.from({ length: pickCount + 1 }, (_, idx) => pickCount - idx).map((hits) => ({
       hits,
       multiplier: getMultiplier(pickCount, hits)
@@ -108,6 +111,7 @@ export default function KenoPage() {
   }, [pickCount]);
 
   const maxMultiplier = useMemo(() => {
+    if (pickCount === 0) return 0;
     const values = Object.values(PAYOUT_TABLE[pickCount] || {});
     return values.length ? Math.max(...values) : 0;
   }, [pickCount]);
@@ -140,7 +144,8 @@ export default function KenoPage() {
         return prev.filter((n) => n !== num).sort((a, b) => a - b);
       }
 
-      if (prev.length >= pickCount) {
+      // الحد الأقصى 10 خلايا
+      if (prev.length >= 10) {
         return prev;
       }
 
@@ -148,16 +153,10 @@ export default function KenoPage() {
     });
   }
 
-  function setNewPickCount(count) {
-    if (phase === 'drawing' || busy) return;
-    setPickCount(count);
-    setSelectedNumbers([]);
-    resetRoundVisuals(`Pick exactly ${count} numbers.`);
-  }
-
   function quickPick() {
     if (phase === 'drawing' || busy) return;
-    setSelectedNumbers(generateQuickPick(pickCount));
+    // يختار 10 عشوائياً كاختيار سريع
+    setSelectedNumbers(generateQuickPick(10));
     resetRoundVisuals('Quick pick applied.');
   }
 
@@ -177,8 +176,8 @@ export default function KenoPage() {
       return;
     }
 
-    if (selectedNumbers.length !== pickCount) {
-      setMessage(`Select exactly ${pickCount} numbers first.`);
+    if (pickCount < 1 || pickCount > 10) {
+      setMessage('Select between 1 and 10 numbers first.');
       return;
     }
 
@@ -255,7 +254,8 @@ export default function KenoPage() {
       pickCount
     };
 
-    setHistory((prev) => [round, ...prev].slice(0, 8));
+    // التعديل هنا: حفظ آخر 3 نتائج فقط بدلاً من 8
+    setHistory((prev) => [round, ...prev].slice(0, 3));
     setBusy(false);
     setPhase('finished');
 
@@ -393,26 +393,7 @@ export default function KenoPage() {
             </button>
           </div>
 
-          <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>
-            Pick Count
-          </div>
-
-          <select
-            value={pickCount}
-            onChange={(e) => setNewPickCount(Number(e.target.value))}
-            disabled={phase === 'drawing' || busy}
-            style={{
-              ...selectStyle,
-              marginBottom: 16,
-              opacity: phase === 'drawing' || busy ? 0.6 : 1
-            }}
-          >
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
+          {/* التعديل هنا: تم إزالة القائمة المنسدلة الخاصة بالـ Pick Count */}
 
           <div
             style={{
@@ -486,7 +467,7 @@ export default function KenoPage() {
             <div style={statRow}>
               <span style={statLabel}>Selected</span>
               <span style={statValue}>
-                {selectedNumbers.length}/{pickCount}
+                {selectedNumbers.length}/10
               </span>
             </div>
 
@@ -626,7 +607,7 @@ export default function KenoPage() {
                 >
                   <div style={{ fontSize: isMobile ? 18 : 20, fontWeight: 900 }}>Board</div>
                   <div style={{ color: '#b1bad3', fontSize: isMobile ? 13 : 14 }}>
-                    {selectedNumbers.length}/{pickCount} selected
+                    {selectedNumbers.length}/10 selected
                   </div>
                 </div>
 
@@ -647,7 +628,7 @@ export default function KenoPage() {
                         disabled={
                           phase === 'drawing' ||
                           busy ||
-                          (!selectedSet.has(num) && selectedNumbers.length >= pickCount)
+                          (!selectedSet.has(num) && selectedNumbers.length >= 10)
                         }
                         style={{
                           height: isMobile ? 40 : 58,
@@ -834,7 +815,7 @@ export default function KenoPage() {
                   fontSize: 14
                 }}
               >
-                Pick exactly {pickCount} numbers, then reveal 10 drawn numbers.
+                Pick 1 to 10 numbers, then reveal 10 drawn numbers.
               </div>
             </div>
           </div>
