@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
-import { mockDiscordUser } from '../lib/mockUser';
 import { placeBet, settleGame } from '../lib/api';
 
 const LEVELS = 9;
@@ -38,6 +37,16 @@ const MODE_CONFIG = {
     color: '#c53030'
   }
 };
+
+function emitBalanceUpdated(balance) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('casino:balance-updated', {
+        detail: { balance }
+      })
+    );
+  }
+}
 
 function roundMultiplier(value) {
   if (value >= 1000) return Math.round(value);
@@ -87,6 +96,7 @@ export default function DragonTowerPage() {
   const [message, setMessage] = useState('Choose your mode and start climbing.');
   const [lastPayout, setLastPayout] = useState(0);
   const [history, setHistory] = useState([]);
+  const [roundId, setRoundId] = useState(null);
 
   const modeConfig = MODE_CONFIG[mode];
 
@@ -136,6 +146,7 @@ export default function DragonTowerPage() {
     setBusy(false);
     setMessage('Choose your mode and start climbing.');
     setLastPayout(0);
+    setRoundId(null);
   }
 
   async function startRound() {
@@ -152,10 +163,11 @@ export default function DragonTowerPage() {
     setMessage('Starting round...');
 
     const betRes = await placeBet(
-      mockDiscordUser.id,
+      undefined,
       amount,
       'dragonTower',
-      `dragon tower ${mode}`
+      `dragon tower ${mode}`,
+      { mode, levels: LEVELS, tileCount: modeConfig.tileCount, safeCount: modeConfig.safeCount }
     );
 
     if (!betRes.ok) {
@@ -164,6 +176,9 @@ export default function DragonTowerPage() {
       return;
     }
 
+    emitBalanceUpdated(betRes.balance);
+
+    setRoundId(betRes.roundId);
     setTower(createTower(mode));
     setPhase('playing');
     setCurrentLevel(0);
@@ -173,13 +188,28 @@ export default function DragonTowerPage() {
   }
 
   async function finalizeWin(payout, reason, levelsCleared, completed = false) {
+    if (!roundId) {
+      setBusy(false);
+      setMessage('Missing roundId.');
+      return false;
+    }
+
     setBusy(true);
 
     const settleRes = await settleGame(
-      mockDiscordUser.id,
+      undefined,
+      roundId,
       payout,
       'dragonTower',
-      reason
+      reason,
+      {
+        mode,
+        levelsCleared,
+        completed,
+        multiplier: getMultiplier(mode, levelsCleared),
+        bet: Number(bet) || 0
+      },
+      'win'
     );
 
     if (!settleRes.ok) {
@@ -188,6 +218,9 @@ export default function DragonTowerPage() {
       return false;
     }
 
+    emitBalanceUpdated(settleRes.balance);
+
+    setRoundId(null);
     setPhase(completed ? 'completed' : 'cashed');
     setLastPayout(payout);
     setHistory((prev) => [
@@ -202,6 +235,52 @@ export default function DragonTowerPage() {
     ].slice(0, 8));
     setBusy(false);
     return true;
+  }
+
+  async function finalizeLoss(levelsCleared) {
+    if (!roundId) {
+      setBusy(false);
+      setMessage('Missing roundId.');
+      return;
+    }
+
+    const settleRes = await settleGame(
+      undefined,
+      roundId,
+      0,
+      'dragonTower',
+      `dragon tower loss at level ${levelsCleared + 1}`,
+      {
+        mode,
+        levelsCleared,
+        bet: Number(bet) || 0
+      },
+      'loss'
+    );
+
+    if (!settleRes.ok) {
+      setBusy(false);
+      setMessage(settleRes.error || 'Failed to settle round.');
+      return;
+    }
+
+    emitBalanceUpdated(settleRes.balance);
+
+    setRoundId(null);
+    setPhase('lost');
+    setBusy(false);
+    setLastPayout(0);
+    setMessage('The dragon got you. Round lost.');
+    setHistory((prev) => [
+      {
+        type: 'lose',
+        payout: 0,
+        levels: levelsCleared,
+        multiplier: 0,
+        mode
+      },
+      ...prev
+    ].slice(0, 8));
   }
 
   async function pickTile(tileIndex) {
@@ -230,20 +309,7 @@ export default function DragonTowerPage() {
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     if (!isSafe) {
-      setPhase('lost');
-      setBusy(false);
-      setLastPayout(0);
-      setMessage('The dragon got you. Round lost.');
-      setHistory((prev) => [
-        {
-          type: 'lose',
-          payout: 0,
-          levels: currentLevel,
-          multiplier: 0,
-          mode
-        },
-        ...prev
-      ].slice(0, 8));
+      await finalizeLoss(currentLevel);
       return;
     }
 
@@ -281,7 +347,6 @@ export default function DragonTowerPage() {
     const row = tower[currentLevel];
     if (row.resolved) return;
 
-    // يختار خلية عشوائية من الخلايا المتوفرة في اللفل الحالي
     const randomIndex = Math.floor(Math.random() * modeConfig.tileCount);
     pickTile(randomIndex);
   }
@@ -366,7 +431,6 @@ export default function DragonTowerPage() {
             Bet Amount
           </div>
 
-          {/* Bet Input with 1/2 and 2x buttons */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
             <input
               type="number"
@@ -384,7 +448,6 @@ export default function DragonTowerPage() {
             </button>
           </div>
 
-          {/* Difficulty Dropdown */}
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>
             Difficulty
           </div>
@@ -483,7 +546,6 @@ export default function DragonTowerPage() {
             {busy && phase === 'playing' ? 'Processing...' : `Cash Out $${currentPayout}`}
           </button>
 
-          {/* Random Pick Button */}
           <button
             onClick={pickRandomTile}
             disabled={phase !== 'playing' || busy}
@@ -676,7 +738,6 @@ export default function DragonTowerPage() {
   );
 }
 
-// Styles
 const inputStyle = {
   width: '100%',
   borderRadius: 14,
