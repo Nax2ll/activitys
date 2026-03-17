@@ -1,4 +1,4 @@
-import { initDiscordUser } from './discord';
+import { initDiscordUser, getCachedDiscordUser } from './discord';
 
 const API_BASE = import.meta.env.DEV
   ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000').replace(/\/+$/, '')
@@ -42,7 +42,13 @@ async function parseResponse(res) {
 
 async function resolveUser(userOrId) {
   if (userOrId) return normalizeUser(userOrId);
-  return await initDiscordUser();
+
+  const cached = getCachedDiscordUser();
+  if (cached?.userId) {
+    return normalizeUser(cached);
+  }
+
+  return normalizeUser(await initDiscordUser());
 }
 
 export async function getBalance(userOrId) {
