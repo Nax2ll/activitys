@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
-import { mockDiscordUser } from '../lib/mockUser';
 import { placeBet, settleGame } from '../lib/api';
 
 const HOUSE_EDGE = 0.99;
@@ -18,6 +17,16 @@ function formatMultiplier(value) {
   if (value >= 100) return value.toFixed(1);
   if (value >= 10) return value.toFixed(2);
   return value.toFixed(3);
+}
+
+function emitBalanceUpdated(balance) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('casino:balance-updated', {
+        detail: { balance }
+      })
+    );
+  }
 }
 
 export default function DicePage() {
@@ -82,10 +91,11 @@ export default function DicePage() {
     setDisplayRoll('--');
 
     const betRes = await placeBet(
-      mockDiscordUser.id,
+      undefined,
       amount,
       'dice',
-      `dice ${mode} ${safeTarget}`
+      `dice ${mode} ${safeTarget}`,
+      { mode, target: safeTarget, winChance, multiplier }
     );
 
     if (!betRes.ok) {
@@ -95,7 +105,10 @@ export default function DicePage() {
       return;
     }
 
-    // تأثير حركة النرد العشوائية السريعة
+    emitBalanceUpdated(betRes.balance);
+
+    const currentRoundId = betRes.roundId;
+
     for (let i = 0; i < 12; i += 1) {
       setDisplayRoll(Math.floor(Math.random() * 100) + 1);
       await sleep(50);
@@ -107,21 +120,31 @@ export default function DicePage() {
 
     setDisplayRoll(rolled);
 
-    if (isWin && finalPayout > 0) {
-      const settleRes = await settleGame(
-        mockDiscordUser.id,
-        finalPayout,
-        'dice',
-        `dice ${mode} ${safeTarget} rolled ${rolled} x${formatMultiplier(multiplier)}`
-      );
+    const settleRes = await settleGame(
+      undefined,
+      currentRoundId,
+      finalPayout,
+      'dice',
+      `dice ${mode} ${safeTarget} rolled ${rolled} x${formatMultiplier(multiplier)}`,
+      {
+        rolled,
+        mode,
+        target: safeTarget,
+        chance: winChance,
+        multiplier,
+        bet: amount
+      },
+      isWin ? 'win' : 'loss'
+    );
 
-      if (!settleRes.ok) {
-        setBusy(false);
-        setPhase('finished');
-        setMessage(settleRes.error || 'Failed to settle payout');
-        return;
-      }
+    if (!settleRes.ok) {
+      setBusy(false);
+      setPhase('finished');
+      setMessage(settleRes.error || 'Failed to settle payout');
+      return;
     }
+
+    emitBalanceUpdated(settleRes.balance);
 
     const result = {
       roll: rolled,
@@ -155,7 +178,6 @@ export default function DicePage() {
           gap: 24
         }}
       >
-        {/* Controls Section */}
         <div
           style={{
             background: '#1a2c38',
@@ -189,7 +211,6 @@ export default function DicePage() {
             Bet Amount
           </div>
 
-          {/* New Bet Input with 1/2 and 2x buttons */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
             <input
               type="number"
@@ -353,7 +374,6 @@ export default function DicePage() {
           </div>
         </div>
 
-        {/* Board Section */}
         <div
           style={{
             background: '#1a2c38',
@@ -374,10 +394,7 @@ export default function DicePage() {
               border: '1px solid rgba(255,255,255,0.05)',
             }}
           >
-            {/* The Roll Visual Slider Component */}
             <div style={{ position: 'relative', margin: '20px 0 40px 0' }}>
-              
-              {/* Background Bar */}
               <div
                 style={{
                   height: 16,
@@ -392,10 +409,7 @@ export default function DicePage() {
                 <div style={{ width: `${100 - safeTarget}%`, background: mode === 'under' ? '#ff4d4d' : '#00e701' }} />
               </div>
 
-              {/* Absolute Overlays (Handle and Stick) */}
               <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                
-                {/* The Target Handle */}
                 <div
                   style={{
                     position: 'absolute',
@@ -416,7 +430,6 @@ export default function DicePage() {
                   <div style={{ width: 14, height: 14, borderRadius: '50%', border: '4px solid #1a2c38' }} />
                 </div>
 
-                {/* The Dice Marker (Stick) */}
                 {displayRoll !== '--' && (
                   <div
                     style={{
@@ -462,7 +475,6 @@ export default function DicePage() {
                 )}
               </div>
 
-              {/* Marks (0, 25, 50, 75, 100) */}
               <div style={{ position: 'absolute', top: 30, left: 0, right: 0 }}>
                 {[0, 25, 50, 75, 100].map(mark => (
                   <div
@@ -481,7 +493,6 @@ export default function DicePage() {
                 ))}
               </div>
 
-              {/* Interactive Invisible Range Slider */}
               <input
                 type="range"
                 min="2"
@@ -502,7 +513,6 @@ export default function DicePage() {
               />
             </div>
 
-            {/* Horizontal Summary Section */}
             <div
               style={{
                 marginTop: 65,
@@ -516,7 +526,6 @@ export default function DicePage() {
               <SummaryItem label="Multiplier" value={`x${formatMultiplier(multiplier)}`} accent="#00e701" />
               <SummaryItem label="Payout" value={`$${payout}`} />
             </div>
-
           </div>
         </div>
       </div>
@@ -524,7 +533,6 @@ export default function DicePage() {
   );
 }
 
-// UI Components & Styles
 function SummaryItem({ label, value, accent = 'white' }) {
   return (
     <div
