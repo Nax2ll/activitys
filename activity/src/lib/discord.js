@@ -25,12 +25,8 @@ export async function initDiscordUser() {
   }
 
   cachedUserPromise = (async () => {
-    console.log('[discord] client id =', CLIENT_ID);
-    console.log('[discord] ready start');
     await withTimeout(discordSdk.ready(), 'discordSdk.ready');
-    console.log('[discord] ready done');
 
-    console.log('[discord] authorize start');
     const authCodeRes = await withTimeout(
       discordSdk.commands.authorize({
         client_id: CLIENT_ID,
@@ -41,14 +37,12 @@ export async function initDiscordUser() {
       }),
       'authorize'
     );
-    console.log('[discord] authorize done', authCodeRes);
 
     const code = authCodeRes?.code;
     if (!code) {
       throw new Error('No OAuth code returned from Discord');
     }
 
-    console.log('[discord] /api/token start');
     const tokenRes = await withTimeout(
       fetch('/api/token', {
         method: 'POST',
@@ -57,23 +51,19 @@ export async function initDiscordUser() {
       }),
       'POST /api/token'
     );
-    console.log('[discord] /api/token response', tokenRes.status);
 
     const tokenData = await tokenRes.json();
     if (!tokenRes.ok || !tokenData?.access_token) {
       throw new Error(tokenData?.error || 'OAuth token exchange failed');
     }
 
-    console.log('[discord] authenticate start');
     await withTimeout(
       discordSdk.commands.authenticate({
         access_token: tokenData.access_token
       }),
       'authenticate'
     );
-    console.log('[discord] authenticate done');
 
-    console.log('[discord] /api/me start');
     const meRes = await withTimeout(
       fetch('/api/me', {
         method: 'GET',
@@ -83,7 +73,6 @@ export async function initDiscordUser() {
       }),
       'GET /api/me'
     );
-    console.log('[discord] /api/me response', meRes.status);
 
     const meData = await meRes.json();
     if (!meRes.ok || !meData?.user?.id) {
@@ -96,7 +85,6 @@ export async function initDiscordUser() {
       username: meData.user.username || ''
     };
 
-    console.log('[discord] final user', cachedUser);
     return cachedUser;
   })();
 
