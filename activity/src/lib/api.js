@@ -1,4 +1,8 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000').replace(/\/+$/, '');
+import { initDiscordUser } from './discord';
+
+const API_BASE = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000').replace(/\/+$/, '')
+  : '/api';
 
 function normalizeUser(userOrId) {
   if (typeof userOrId === 'string') {
@@ -36,9 +40,14 @@ async function parseResponse(res) {
   return data;
 }
 
+async function resolveUser(userOrId) {
+  if (userOrId) return normalizeUser(userOrId);
+  return await initDiscordUser();
+}
+
 export async function getBalance(userOrId) {
   try {
-    const { userId, username } = normalizeUser(userOrId);
+    const { userId, username } = await resolveUser(userOrId);
 
     if (!userId) {
       return { ok: false, error: 'Missing userId' };
@@ -50,10 +59,10 @@ export async function getBalance(userOrId) {
     });
 
     return await parseResponse(res);
-  } catch {
+  } catch (error) {
     return {
       ok: false,
-      error: `Could not connect to API on ${API_BASE}`
+      error: error?.message || `Could not connect to API on ${API_BASE}`
     };
   }
 }
@@ -66,7 +75,7 @@ export async function placeBet(
   meta = {}
 ) {
   try {
-    const { userId, username } = normalizeUser(userOrId);
+    const { userId, username } = await resolveUser(userOrId);
 
     if (!userId) {
       return { ok: false, error: 'Missing userId' };
@@ -86,10 +95,10 @@ export async function placeBet(
     });
 
     return await parseResponse(res);
-  } catch {
+  } catch (error) {
     return {
       ok: false,
-      error: `Could not connect to API on ${API_BASE}`
+      error: error?.message || `Could not connect to API on ${API_BASE}`
     };
   }
 }
@@ -104,7 +113,7 @@ export async function settleGame(
   result
 ) {
   try {
-    const { userId, username } = normalizeUser(userOrId);
+    const { userId, username } = await resolveUser(userOrId);
 
     if (!userId) {
       return { ok: false, error: 'Missing userId' };
@@ -135,10 +144,10 @@ export async function settleGame(
     });
 
     return await parseResponse(res);
-  } catch {
+  } catch (error) {
     return {
       ok: false,
-      error: `Could not connect to API on ${API_BASE}`
+      error: error?.message || `Could not connect to API on ${API_BASE}`
     };
   }
 }
