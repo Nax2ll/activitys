@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
 import { placeBet, settleGame } from '../lib/api';
 
 const GRID_SIZE = 25;
 const HOUSE_EDGE = 0.99;
 const MINE_OPTIONS = [1, 3, 5, 7, 10, 15, 20];
+const MOBILE_BREAKPOINT = 820;
 
 function emitBalanceUpdated(balance) {
   if (typeof window !== 'undefined') {
@@ -60,11 +61,25 @@ export default function MinesPage() {
   const [bet, setBet] = useState('10');
   const [minesCount, setMinesCount] = useState(3);
   const [board, setBoard] = useState(() => createBoard(3));
-  const [phase, setPhase] = useState('idle'); // idle | playing | lost | cashed
+  const [phase, setPhase] = useState('idle');
   const [message, setMessage] = useState('Choose your bet and start the round.');
   const [busy, setBusy] = useState(false);
   const [lastPayout, setLastPayout] = useState(0);
   const [roundId, setRoundId] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const revealedSafeCount = useMemo(() => {
     return board.filter((tile) => tile.revealed && !tile.isMine).length;
@@ -90,6 +105,20 @@ export default function MinesPage() {
     const totalGems = 25 - minesCount;
     return totalGems - revealedSafeCount;
   }, [minesCount, revealedSafeCount]);
+
+  const safeTilesRemaining = useMemo(() => {
+    return 25 - minesCount - revealedSafeCount;
+  }, [minesCount, revealedSafeCount]);
+
+  const unrevealedTiles = useMemo(() => {
+    return 25 - revealedSafeCount - minesCount + minesCount - board.filter((tile) => tile.revealed).length + board.filter((tile) => tile.revealed && tile.isMine).length;
+  }, [board, revealedSafeCount, minesCount]);
+
+  const nextSafeChance = useMemo(() => {
+    const hiddenTiles = board.filter((tile) => !tile.revealed).length;
+    if (phase !== 'playing' || hiddenTiles <= 0) return null;
+    return ((safeTilesRemaining / hiddenTiles) * 100).toFixed(2);
+  }, [board, phase, safeTilesRemaining]);
 
   function multiplyBet() {
     setBet(String((Number(bet) || 0) * 2));
@@ -295,17 +324,20 @@ export default function MinesPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '390px 1fr',
-          gap: 24
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(330px, 390px) minmax(0, 1fr)',
+          gap: isMobile ? 16 : 24,
+          alignItems: 'start'
         }}
       >
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 20,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 20,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 2 : 1
           }}
         >
           <div
@@ -313,10 +345,11 @@ export default function MinesPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              marginBottom: 18
+              marginBottom: 18,
+              gap: 12
             }}
           >
-            <div style={{ fontWeight: 900, fontSize: 24 }}>Manual</div>
+            <div style={{ fontWeight: 900, fontSize: isMobile ? 20 : 24 }}>Manual</div>
             <div
               style={{
                 fontSize: 12,
@@ -328,7 +361,8 @@ export default function MinesPage() {
                     : phase === 'cashed'
                     ? '#7df9a6'
                     : '#b1bad3',
-                fontWeight: 800
+                fontWeight: 800,
+                flexShrink: 0
               }}
             >
               {phase === 'playing'
@@ -345,19 +379,34 @@ export default function MinesPage() {
             Bet Amount
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr 80px 80px' : '1fr 88px 88px',
+              gap: 8,
+              marginBottom: 18
+            }}
+          >
             <input
               type="number"
               min="1"
               value={bet}
               onChange={(e) => setBet(e.target.value)}
               disabled={phase === 'playing' || busy}
-              style={{ ...inputStyle, flex: 1 }}
+              style={{ ...inputStyle, minWidth: 0 }}
             />
-            <button onClick={divideBet} disabled={phase === 'playing' || busy} style={actionBtn}>
+            <button
+              onClick={divideBet}
+              disabled={phase === 'playing' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
               1/2
             </button>
-            <button onClick={multiplyBet} disabled={phase === 'playing' || busy} style={actionBtn}>
+            <button
+              onClick={multiplyBet}
+              disabled={phase === 'playing' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
               2x
             </button>
           </div>
@@ -403,11 +452,94 @@ export default function MinesPage() {
             ))}
           </select>
 
+          <button
+            onClick={startGame}
+            disabled={phase === 'playing' || busy}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#00e701',
+              color: 'black',
+              fontWeight: 900,
+              padding: '15px 16px',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 18,
+              opacity: phase === 'playing' || busy ? 0.65 : 1,
+              transition: 'transform 0.05s ease',
+              fontSize: isMobile ? 15 : 16
+            }}
+            onMouseDown={(e) =>
+              phase !== 'playing' && !busy && (e.currentTarget.style.transform = 'scale(0.97)')
+            }
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            {busy && phase !== 'playing' ? 'Starting...' : phase === 'playing' ? 'Game Running' : 'Bet'}
+          </button>
+
+          <button
+            onClick={cashOut}
+            disabled={phase !== 'playing' || revealedSafeCount <= 0 || busy}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#2f4553',
+              color: 'white',
+              fontWeight: 800,
+              padding: '15px 16px',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 10,
+              opacity: phase !== 'playing' || revealedSafeCount <= 0 || busy ? 0.6 : 1,
+              fontSize: isMobile ? 15 : 16
+            }}
+          >
+            {busy && phase === 'playing' ? 'Cashing Out...' : `Cash Out $${potentialPayout}`}
+          </button>
+
+          <button
+            onClick={pickRandomTile}
+            disabled={phase !== 'playing' || busy}
+            style={{
+              width: '100%',
+              borderRadius: 14,
+              background: '#233847',
+              color: 'white',
+              fontWeight: 700,
+              padding: '13px 16px',
+              border: 'none',
+              cursor: phase === 'playing' && !busy ? 'pointer' : 'default',
+              marginTop: 10,
+              opacity: phase !== 'playing' || busy ? 0.6 : 1,
+              fontSize: isMobile ? 14 : 15
+            }}
+          >
+            Pick Random Tile
+          </button>
+
+          <div
+            style={{
+              marginTop: 16,
+              color:
+                phase === 'lost'
+                  ? '#ff8d8d'
+                  : phase === 'cashed'
+                  ? '#7df9a6'
+                  : '#b1bad3',
+              minHeight: 22,
+              lineHeight: 1.6,
+              fontSize: isMobile ? 14 : 15
+            }}
+          >
+            {message}
+          </div>
+
           <div
             style={{
               background: '#132634',
               borderRadius: 18,
-              padding: 16,
+              padding: isMobile ? 14 : 16,
               marginTop: 18,
               lineHeight: 1.9,
               border: '1px solid rgba(255,255,255,0.05)'
@@ -439,108 +571,40 @@ export default function MinesPage() {
             </div>
 
             <div style={statRow}>
+              <span style={statLabel}>Next safe chance</span>
+              <span style={statValue}>{nextSafeChance ? `${nextSafeChance}%` : '-'}</span>
+            </div>
+
+            <div style={statRow}>
               <span style={statLabel}>Last payout</span>
               <span style={statValue}>${lastPayout}</span>
             </div>
-          </div>
-
-          <button
-            onClick={startGame}
-            disabled={phase === 'playing' || busy}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#00e701',
-              color: 'black',
-              fontWeight: 900,
-              padding: '15px 16px',
-              border: 'none',
-              cursor: 'pointer',
-              marginTop: 18,
-              opacity: phase === 'playing' || busy ? 0.65 : 1,
-              transition: 'transform 0.05s ease',
-            }}
-            onMouseDown={(e) => phase !== 'playing' && !busy && (e.currentTarget.style.transform = 'scale(0.97)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            {busy && phase !== 'playing' ? 'Starting...' : phase === 'playing' ? 'Game Running' : 'Bet'}
-          </button>
-
-          <button
-            onClick={cashOut}
-            disabled={phase !== 'playing' || revealedSafeCount <= 0 || busy}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#2f4553',
-              color: 'white',
-              fontWeight: 800,
-              padding: '15px 16px',
-              border: 'none',
-              cursor: 'pointer',
-              marginTop: 10,
-              opacity: phase !== 'playing' || revealedSafeCount <= 0 || busy ? 0.6 : 1
-            }}
-          >
-            {busy && phase === 'playing' ? 'Cashing Out...' : `Cash Out $${potentialPayout}`}
-          </button>
-
-          <button
-            onClick={pickRandomTile}
-            disabled={phase !== 'playing' || busy}
-            style={{
-              width: '100%',
-              borderRadius: 14,
-              background: '#233847',
-              color: 'white',
-              fontWeight: 700,
-              padding: '13px 16px',
-              border: 'none',
-              cursor: phase === 'playing' && !busy ? 'pointer' : 'default',
-              marginTop: 10,
-              opacity: phase !== 'playing' || busy ? 0.6 : 1
-            }}
-          >
-            Pick Random Tile
-          </button>
-
-          <div
-            style={{
-              marginTop: 16,
-              color:
-                phase === 'lost'
-                  ? '#ff8d8d'
-                  : phase === 'cashed'
-                  ? '#7df9a6'
-                  : '#b1bad3',
-              minHeight: 22,
-              lineHeight: 1.6
-            }}
-          >
-            {message}
           </div>
         </div>
 
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 24,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 24,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 1 : 2
           }}
         >
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
+              alignItems: isMobile ? 'flex-start' : 'center',
               justifyContent: 'space-between',
-              marginBottom: 18
+              marginBottom: 18,
+              gap: 12,
+              flexDirection: isMobile ? 'column' : 'row'
             }}
           >
-            <div style={{ fontSize: 22, fontWeight: 900 }}>Board</div>
-            <div style={{ color: '#b1bad3', fontSize: 14 }}>
+            <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 900 }}>Board</div>
+            <div style={{ color: '#b1bad3', fontSize: isMobile ? 13 : 14 }}>
               5 × 5 Grid · {minesCount} Mines
             </div>
           </div>
@@ -549,7 +613,7 @@ export default function MinesPage() {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(5, 1fr)',
-              gap: 14
+              gap: isMobile ? 8 : 14
             }}
           >
             {board.map((tile, index) => {
@@ -563,7 +627,7 @@ export default function MinesPage() {
                   disabled={phase !== 'playing' || busy || tile.revealed}
                   style={{
                     aspectRatio: '1 / 1',
-                    borderRadius: 18,
+                    borderRadius: isMobile ? 12 : 18,
                     border: '1px solid rgba(255,255,255,0.06)',
                     background: unrevealed
                       ? 'linear-gradient(180deg, #2b4150, #233847)'
@@ -571,7 +635,7 @@ export default function MinesPage() {
                       ? 'linear-gradient(180deg, #245b3d, #1d4d33)'
                       : 'linear-gradient(180deg, #7f1d1d, #5f1414)',
                     color: 'white',
-                    fontSize: 28,
+                    fontSize: isMobile ? 20 : 28,
                     fontWeight: 900,
                     cursor:
                       phase === 'playing' && !busy && !tile.revealed ? 'pointer' : 'default',
@@ -582,7 +646,7 @@ export default function MinesPage() {
                       : '0 10px 18px rgba(0,0,0,0.16)'
                   }}
                   onMouseEnter={(e) => {
-                    if (phase === 'playing' && !busy && !tile.revealed) {
+                    if (phase === 'playing' && !busy && !tile.revealed && !isMobile) {
                       e.currentTarget.style.transform = 'translateY(-3px)';
                     }
                   }}
@@ -600,11 +664,12 @@ export default function MinesPage() {
             <div
               style={{
                 marginTop: 18,
-                padding: 16,
+                padding: isMobile ? 14 : 16,
                 borderRadius: 16,
                 background: '#132634',
                 color: '#b1bad3',
-                lineHeight: 1.8
+                lineHeight: 1.8,
+                fontSize: isMobile ? 14 : 15
               }}
             >
               {phase === 'lost' ? (
@@ -621,11 +686,12 @@ export default function MinesPage() {
             <div
               style={{
                 marginTop: 18,
-                padding: 16,
+                padding: isMobile ? 14 : 16,
                 borderRadius: 16,
                 background: '#132634',
                 color: '#b1bad3',
-                lineHeight: 1.8
+                lineHeight: 1.8,
+                fontSize: isMobile ? 14 : 15
               }}
             >
               Pick safe tiles to increase your multiplier, then cash out before hitting a mine.
@@ -662,7 +728,6 @@ const actionBtn = {
   color: 'white',
   border: '1px solid rgba(255,255,255,0.06)',
   borderRadius: 12,
-  padding: '0 20px',
   cursor: 'pointer',
   fontWeight: 800,
   fontSize: 16
@@ -681,5 +746,7 @@ const statLabel = {
 
 const statValue = {
   color: 'white',
-  fontWeight: 800
+  fontWeight: 800,
+  minWidth: 0,
+  textAlign: 'right'
 };
