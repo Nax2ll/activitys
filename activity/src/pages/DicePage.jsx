@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
 import { placeBet, settleGame } from '../lib/api';
 
 const HOUSE_EDGE = 0.99;
+const MOBILE_BREAKPOINT = 820;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,14 +32,28 @@ function emitBalanceUpdated(balance) {
 
 export default function DicePage() {
   const [bet, setBet] = useState('10');
-  const [mode, setMode] = useState('under'); // under | over
+  const [mode, setMode] = useState('under');
   const [target, setTarget] = useState(50);
-  const [phase, setPhase] = useState('idle'); // idle | rolling | finished
+  const [phase, setPhase] = useState('idle');
   const [busy, setBusy] = useState(false);
   const [displayRoll, setDisplayRoll] = useState('--');
   const [message, setMessage] = useState('Choose your target and roll.');
   const [lastResult, setLastResult] = useState(null);
   const [history, setHistory] = useState([]);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const safeTarget = useMemo(() => {
     return clamp(Number(target) || 50, 2, 98);
@@ -174,17 +189,20 @@ export default function DicePage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '400px 1fr',
-          gap: 24
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(340px, 400px) minmax(0, 1fr)',
+          gap: isMobile ? 16 : 24,
+          alignItems: 'start'
         }}
       >
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 20,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 20,
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 18px 40px rgba(0,0,0,0.18)'
+            boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+            minWidth: 0,
+            order: isMobile ? 2 : 1
           }}
         >
           <div
@@ -192,15 +210,17 @@ export default function DicePage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 18
+              marginBottom: 18,
+              gap: 12
             }}
           >
-            <div style={{ fontSize: 24, fontWeight: 900 }}>Manual</div>
+            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 900 }}>Manual</div>
             <div
               style={{
                 fontSize: 12,
                 fontWeight: 800,
-                color: phase === 'rolling' ? '#00e701' : '#b1bad3'
+                color: phase === 'rolling' ? '#00e701' : '#b1bad3',
+                flexShrink: 0
               }}
             >
               {phase === 'rolling' ? 'ROLLING' : 'READY'}
@@ -211,19 +231,34 @@ export default function DicePage() {
             Bet Amount
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr 80px 80px' : '1fr 88px 88px',
+              gap: 8,
+              marginBottom: 18
+            }}
+          >
             <input
               type="number"
               min="1"
               value={bet}
               onChange={(e) => setBet(e.target.value)}
               disabled={phase === 'rolling' || busy}
-              style={{ ...inputStyle, flex: 1 }}
+              style={{ ...inputStyle, minWidth: 0 }}
             />
-            <button onClick={divideBet} disabled={phase === 'rolling' || busy} style={actionBtn}>
+            <button
+              onClick={divideBet}
+              disabled={phase === 'rolling' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
               1/2
             </button>
-            <button onClick={multiplyBet} disabled={phase === 'rolling' || busy} style={actionBtn}>
+            <button
+              onClick={multiplyBet}
+              disabled={phase === 'rolling' || busy}
+              style={{ ...actionBtn, padding: isMobile ? '0 12px' : '0 20px' }}
+            >
               2x
             </button>
           </div>
@@ -261,14 +296,14 @@ export default function DicePage() {
               marginTop: 18,
               background: '#132634',
               borderRadius: 18,
-              padding: 16,
+              padding: isMobile ? 14 : 16,
               border: '1px solid rgba(255,255,255,0.05)',
               lineHeight: 1.9
             }}
           >
             <div style={statRow}>
               <span style={statLabel}>Rule</span>
-              <span style={statValue}>{rollRuleText}</span>
+              <span style={{ ...statValue, textAlign: 'right' }}>{rollRuleText}</span>
             </div>
 
             <div style={statRow}>
@@ -309,6 +344,7 @@ export default function DicePage() {
               marginTop: 18,
               opacity: phase === 'rolling' || busy ? 0.65 : 1,
               transition: 'transform 0.05s ease',
+              fontSize: isMobile ? 15 : 16
             }}
             onMouseDown={(e) => !busy && (e.currentTarget.style.transform = 'scale(0.97)')}
             onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
@@ -322,7 +358,8 @@ export default function DicePage() {
               marginTop: 16,
               color: lastResult?.isWin ? '#7df9a6' : '#b1bad3',
               minHeight: 24,
-              lineHeight: 1.6
+              lineHeight: 1.6,
+              fontSize: isMobile ? 14 : 15
             }}
           >
             {message}
@@ -355,18 +392,36 @@ export default function DicePage() {
                       padding: 14,
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      gap: 12
                     }}
                   >
-                    <div>
-                      <div style={{ fontWeight: 800, color: item.isWin ? '#00e701' : 'white' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          color: item.isWin ? '#00e701' : 'white',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         {item.isWin ? 'Win' : 'Lose'} · {item.roll}
                       </div>
-                      <div style={{ color: '#b1bad3', fontSize: 13, marginTop: 4 }}>
+                      <div
+                        style={{
+                          color: '#b1bad3',
+                          fontSize: 13,
+                          marginTop: 4,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         {item.mode.toUpperCase()} {item.target} · x{formatMultiplier(item.multiplier)}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 900 }}>${item.payout}</div>
+                    <div style={{ fontWeight: 900, flexShrink: 0 }}>${item.payout}</div>
                   </div>
                 ))
               )}
@@ -377,36 +432,55 @@ export default function DicePage() {
         <div
           style={{
             background: '#1a2c38',
-            borderRadius: 24,
-            padding: 24,
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 16 : 24,
             border: '1px solid rgba(255,255,255,0.06)',
             boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            minWidth: 0,
+            order: isMobile ? 1 : 2
           }}
         >
           <div
             style={{
-              background: 'radial-gradient(circle at top, rgba(68,98,121,0.38), rgba(15,33,46,0.98) 65%)',
+              background:
+                'radial-gradient(circle at top, rgba(68,98,121,0.38), rgba(15,33,46,0.98) 65%)',
               borderRadius: 22,
-              padding: '80px 40px',
+              padding: isMobile ? '54px 14px 18px' : '80px 40px',
               border: '1px solid rgba(255,255,255,0.05)',
+              overflow: 'hidden'
             }}
           >
-            <div style={{ position: 'relative', margin: '20px 0 40px 0' }}>
+            <div
+              style={{
+                position: 'relative',
+                margin: isMobile ? '8px 0 22px 0' : '20px 0 40px 0'
+              }}
+            >
               <div
                 style={{
-                  height: 16,
-                  borderRadius: 8,
+                  height: isMobile ? 14 : 16,
+                  borderRadius: 999,
                   display: 'flex',
                   overflow: 'hidden',
                   background: '#132634',
                   boxShadow: 'inset 0 2px 5px rgba(0,0,0,0.5)'
                 }}
               >
-                <div style={{ width: `${safeTarget}%`, background: mode === 'under' ? '#00e701' : '#ff4d4d' }} />
-                <div style={{ width: `${100 - safeTarget}%`, background: mode === 'under' ? '#ff4d4d' : '#00e701' }} />
+                <div
+                  style={{
+                    width: `${safeTarget}%`,
+                    background: mode === 'under' ? '#00e701' : '#ff4d4d'
+                  }}
+                />
+                <div
+                  style={{
+                    width: `${100 - safeTarget}%`,
+                    background: mode === 'under' ? '#ff4d4d' : '#00e701'
+                  }}
+                />
               </div>
 
               <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -416,18 +490,25 @@ export default function DicePage() {
                     left: `${safeTarget}%`,
                     top: '50%',
                     transform: 'translate(-50%, -50%)',
-                    width: 28,
-                    height: 28,
+                    width: isMobile ? 22 : 28,
+                    height: isMobile ? 22 : 28,
                     borderRadius: '50%',
                     background: '#fff',
                     boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    zIndex: 4,
+                    zIndex: 4
                   }}
                 >
-                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: '4px solid #1a2c38' }} />
+                  <div
+                    style={{
+                      width: isMobile ? 10 : 14,
+                      height: isMobile ? 10 : 14,
+                      borderRadius: '50%',
+                      border: `${isMobile ? 3 : 4}px solid #1a2c38`
+                    }}
+                  />
                 </div>
 
                 {displayRoll !== '--' && (
@@ -435,7 +516,7 @@ export default function DicePage() {
                     style={{
                       position: 'absolute',
                       left: `${displayRoll}%`,
-                      top: -55,
+                      top: isMobile ? -42 : -55,
                       transform: 'translateX(-50%)',
                       zIndex: 5,
                       display: 'flex',
@@ -446,12 +527,12 @@ export default function DicePage() {
                   >
                     <div
                       style={{
-                        width: 44,
-                        height: 44,
-                        background: phase === 'rolling' ? '#fff' : (lastResult?.isWin ? '#00e701' : '#ff4d4d'),
-                        color: phase === 'rolling' ? '#000' : (lastResult?.isWin ? '#000' : '#fff'),
+                        width: isMobile ? 34 : 44,
+                        height: isMobile ? 34 : 44,
+                        background: phase === 'rolling' ? '#fff' : lastResult?.isWin ? '#00e701' : '#ff4d4d',
+                        color: phase === 'rolling' ? '#000' : lastResult?.isWin ? '#000' : '#fff',
                         fontWeight: 900,
-                        fontSize: 20,
+                        fontSize: isMobile ? 15 : 20,
                         borderRadius: 8,
                         display: 'flex',
                         alignItems: 'center',
@@ -465,8 +546,8 @@ export default function DicePage() {
                     <div
                       style={{
                         width: 4,
-                        height: 25,
-                        background: phase === 'rolling' ? '#fff' : (lastResult?.isWin ? '#00e701' : '#ff4d4d'),
+                        height: isMobile ? 18 : 25,
+                        background: phase === 'rolling' ? '#fff' : lastResult?.isWin ? '#00e701' : '#ff4d4d',
                         borderRadius: 2,
                         marginTop: -2
                       }}
@@ -475,8 +556,15 @@ export default function DicePage() {
                 )}
               </div>
 
-              <div style={{ position: 'absolute', top: 30, left: 0, right: 0 }}>
-                {[0, 25, 50, 75, 100].map(mark => (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: isMobile ? 24 : 30,
+                  left: 0,
+                  right: 0
+                }}
+              >
+                {[0, 25, 50, 75, 100].map((mark) => (
                   <div
                     key={mark}
                     style={{
@@ -484,7 +572,7 @@ export default function DicePage() {
                       left: `${mark}%`,
                       transform: 'translateX(-50%)',
                       color: '#b1bad3',
-                      fontSize: 14,
+                      fontSize: isMobile ? 11 : 14,
                       fontWeight: 800
                     }}
                   >
@@ -502,7 +590,7 @@ export default function DicePage() {
                 disabled={phase === 'rolling' || busy}
                 style={{
                   position: 'absolute',
-                  top: -10,
+                  top: isMobile ? -8 : -10,
                   left: 0,
                   width: '100%',
                   height: 36,
@@ -515,16 +603,25 @@ export default function DicePage() {
 
             <div
               style={{
-                marginTop: 65,
-                display: 'flex',
-                gap: 12,
-                flexWrap: 'wrap'
+                marginTop: isMobile ? 34 : 65,
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))',
+                gap: 12
               }}
             >
-              <SummaryItem label="Target" value={safeTarget} />
-              <SummaryItem label="Win Chance" value={`${winChance.toFixed(2)}%`} />
-              <SummaryItem label="Multiplier" value={`x${formatMultiplier(multiplier)}`} accent="#00e701" />
-              <SummaryItem label="Payout" value={`$${payout}`} />
+              <SummaryItem label="Target" value={safeTarget} isMobile={isMobile} />
+              <SummaryItem
+                label="Win Chance"
+                value={`${winChance.toFixed(2)}%`}
+                isMobile={isMobile}
+              />
+              <SummaryItem
+                label="Multiplier"
+                value={`x${formatMultiplier(multiplier)}`}
+                accent="#00e701"
+                isMobile={isMobile}
+              />
+              <SummaryItem label="Payout" value={`$${payout}`} isMobile={isMobile} />
             </div>
           </div>
         </div>
@@ -533,26 +630,41 @@ export default function DicePage() {
   );
 }
 
-function SummaryItem({ label, value, accent = 'white' }) {
+function SummaryItem({ label, value, accent = 'white', isMobile = false }) {
   return (
     <div
       style={{
         background: '#132634',
         borderRadius: 16,
-        padding: '16px 12px',
+        padding: isMobile ? '14px 10px' : '16px 12px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         border: '1px solid rgba(255,255,255,0.05)',
-        flex: 1,
-        minWidth: '100px'
+        minWidth: 0
       }}
     >
-      <span style={{ color: '#b1bad3', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+      <span
+        style={{
+          color: '#b1bad3',
+          fontWeight: 700,
+          fontSize: isMobile ? 12 : 13,
+          marginBottom: 6,
+          textAlign: 'center'
+        }}
+      >
         {label}
       </span>
-      <span style={{ color: accent, fontWeight: 900, fontSize: 18 }}>
+      <span
+        style={{
+          color: accent,
+          fontWeight: 900,
+          fontSize: isMobile ? 16 : 18,
+          textAlign: 'center',
+          wordBreak: 'break-word'
+        }}
+      >
         {value}
       </span>
     </div>
@@ -574,7 +686,6 @@ const actionBtn = {
   color: 'white',
   border: '1px solid rgba(255,255,255,0.06)',
   borderRadius: 12,
-  padding: '0 20px',
   cursor: 'pointer',
   fontWeight: 800,
   fontSize: 16
@@ -609,5 +720,6 @@ const statLabel = {
 
 const statValue = {
   color: 'white',
-  fontWeight: 800
+  fontWeight: 800,
+  minWidth: 0
 };
