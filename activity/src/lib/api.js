@@ -109,6 +109,26 @@ export async function placeBet(
   }
 }
 
+export async function getTopProfitGames(userOrId) {
+  try {
+    const { userId } = await resolveUser(userOrId);
+
+    if (!userId) {
+      return { ok: false, error: 'Missing userId' };
+    }
+
+    const res = await fetch(`${API_BASE}/games/top-profit/${encodeURIComponent(userId)}`, {
+      method: 'GET'
+    });
+
+    return await parseResponse(res);
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || `Could not connect to API on ${API_BASE}`
+    };
+  }
+}
 export async function settleGame(
   userOrId,
   roundId,
