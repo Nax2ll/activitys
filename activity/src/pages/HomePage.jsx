@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageShell from '../components/PageShell';
 import GameCard from '../components/GameCard';
+import { getTopProfitGames } from '../lib/api';
 
 const MOBILE_BREAKPOINT = 820;
 
