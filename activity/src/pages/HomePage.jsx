@@ -49,11 +49,28 @@ const games = [
   }
 ];
 
+// دالة بسيطة عشان ترتب أسماء الألعاب بشكل حلو
+function formatGameName(key) {
+  const names = {
+    dice: 'Dice',
+    mines: 'Mines',
+    chickenCross: 'Chicken Cross',
+    dragonTower: 'Dragon Tower',
+    plinko: 'Plinko',
+    keno: 'Keno'
+  };
+  return names[key] || key;
+}
+
 export default function HomePage() {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth <= MOBILE_BREAKPOINT;
   });
+
+  // ستيت جديدة عشان نحفظ فيها أعلى 3 ألعاب
+  const [topGames, setTopGames] = useState([]);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
     function handleResize() {
@@ -63,6 +80,39 @@ export default function HomePage() {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // UseEffect جديد عشان يجيب بيانات اليوزر من الباك اند
+  useEffect(() => {
+    async function fetchUserStats() {
+      try {
+        // تنبيه: غير الرابط هذا للـ API اللي يرجع بيانات اليوزر من المونقو داتا بيز حقك
+        const res = await fetch('/api/user/profile'); 
+        const data = await res.json();
+
+        if (data && data.stats) {
+          // نحول أوبجكت الstats إلى مصفوفة (Array) عشان نقدر نرتبها
+          const gamesArray = Object.entries(data.stats).map(([key, value]) => ({
+            id: key,
+            name: formatGameName(key),
+            profit: value.profit || 0
+          }));
+
+          // نرتب الألعاب من الأعلى ربحاً إلى الأقل، وناخذ أول 3 بس
+          const sortedTop3 = gamesArray
+            .sort((a, b) => b.profit - a.profit)
+            .slice(0, 3);
+
+          setTopGames(sortedTop3);
+        }
+      } catch (error) {
+        console.error('Error fetching user stats:', error);
+      } finally {
+        setIsLoadingStats(false);
+      }
+    }
+
+    fetchUserStats();
   }, []);
 
   return (
@@ -127,6 +177,7 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* المربع اللي تم تعديله */}
         <div
           style={{
             background: '#1a2c38',
@@ -142,59 +193,61 @@ export default function HomePage() {
               marginBottom: 16
             }}
           >
-            Popular Right Now
+            Your Top Profitable Games
           </div>
 
           <div style={{ display: 'grid', gap: 12 }}>
-            {['Mines', 'Dice', 'Plinko'].map((name, i) => (
-              <div
-                key={name}
-                style={{
-                  background: '#233847',
-                  borderRadius: 16,
-                  padding: isMobile ? '12px 14px' : '14px 16px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontWeight: 800,
-                      fontSize: isMobile ? 14 : 15
-                    }}
-                  >
-                    {name}
-                  </div>
-                  <div
-                    style={{
-                      color: '#b1bad3',
-                      fontSize: isMobile ? 12 : 13,
-                      marginTop: 4,
-                      lineHeight: 1.45
-                    }}
-                  >
-                    {i === 0
-                      ? 'High risk, high reward'
-                      : i === 1
-                      ? 'Fast betting'
-                      : 'Animated drop game'}
-                  </div>
-                </div>
+            {isLoadingStats ? (
+              <div style={{ color: '#b1bad3', fontSize: 14 }}>Loading stats...</div>
+            ) : topGames.length > 0 ? (
+              topGames.map((game, i) => (
                 <div
+                  key={game.id}
                   style={{
-                    color: '#00e701',
-                    fontWeight: 900,
-                    fontSize: isMobile ? 13 : 14,
-                    flexShrink: 0
+                    background: '#233847',
+                    borderRadius: 16,
+                    padding: isMobile ? '12px 14px' : '14px 16px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12
                   }}
                 >
-                  Live
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        fontSize: isMobile ? 14 : 15
+                      }}
+                    >
+                      {game.name}
+                    </div>
+                    <div
+                      style={{
+                        color: '#b1bad3',
+                        fontSize: isMobile ? 12 : 13,
+                        marginTop: 4,
+                        lineHeight: 1.45
+                      }}
+                    >
+                      Rank #{i + 1}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      color: game.profit >= 0 ? '#00e701' : '#ff4d4d',
+                      fontWeight: 900,
+                      fontSize: isMobile ? 13 : 14,
+                      flexShrink: 0
+                    }}
+                  >
+                    {game.profit >= 0 ? '+' : ''}{game.profit}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div style={{ color: '#b1bad3', fontSize: 14 }}>No games played yet.</div>
+            )}
           </div>
         </div>
       </div>
