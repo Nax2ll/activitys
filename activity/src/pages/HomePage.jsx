@@ -152,7 +152,7 @@ export default function HomePage() {
         >
           <div
             style={{
-              color: '#00e701',
+              color: '#713bc5',
               fontWeight: 800,
               fontSize: isMobile ? 12 : 14,
               marginBottom: 10,
@@ -172,7 +172,7 @@ export default function HomePage() {
           >
             Play Casino Games
             <br />
-            Inside Discord
+            Powered by Milkyway
           </div>
 
           <div
@@ -184,8 +184,7 @@ export default function HomePage() {
               lineHeight: 1.6
             }}
           >
-            A Stake-style activity with clean UI, smooth navigation, wallet support,
-            and room to expand into multiplayer later.
+            A Halal way to experince gambling without losing your real money,
           </div>
         </div>
 
@@ -241,7 +240,7 @@ export default function HomePage() {
                         fontSize: isMobile ? 14 : 15
                       }}
                     >
-                      #{i + 1} {game.name}
+                      {i + 1} - {game.name}
                     </div>
 
                     <div
