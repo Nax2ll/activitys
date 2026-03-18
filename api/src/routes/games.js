@@ -297,5 +297,47 @@ router.post('/settle', async (req, res) => {
     session.endSession();
   }
 });
+router.get('/top-profit/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
 
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'Missing userId' });
+    }
+
+    const user = await User.findOne({ userId }).lean();
+
+    const stats = user?.stats || {};
+
+    const labels = {
+      dice: 'Dice',
+      mines: 'Mines',
+      chickenCross: 'Chicken Cross',
+      dragonTower: 'Dragon Tower',
+      plinko: 'Plinko',
+      keno: 'Keno'
+    };
+
+    const items = Object.entries(stats)
+      .map(([key, value]) => ({
+        key,
+        name: labels[key] || key,
+        played: Number(value?.played || 0),
+        wins: Number(value?.wins || 0),
+        losses: Number(value?.losses || 0),
+        profit: Number(value?.profit || 0)
+      }))
+      .filter((item) => item.played > 0)
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 3);
+
+    return res.json({
+      ok: true,
+      items
+    });
+  } catch (error) {
+    console.error('GET /games/top-profit/:userId error:', error);
+    return res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
+});
 module.exports = router;
