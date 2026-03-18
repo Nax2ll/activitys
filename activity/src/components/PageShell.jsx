@@ -228,27 +228,6 @@ export default function PageShell({ title, children }) {
             ) : null}
           </div>
 
-          {location.pathname !== '/' ? (
-            <div style={{ marginBottom: 18 }}>
-              <Link
-                to="/"
-                style={{
-                  background: '#1a2c38',
-                  padding: '10px 16px',
-                  borderRadius: 12,
-                  display: 'inline-block',
-                  color: 'white',
-                  textDecoration: 'none',
-                  fontWeight: 700,
-                  border: '1px solid rgba(255,255,255,0.04)',
-                  fontSize: isMobile ? 14 : 15
-                }}
-              >
-                ← Back to Casino
-              </Link>
-            </div>
-          ) : null}
-
           <div style={{ minWidth: 0 }}>{children}</div>
         </div>
       </main>
