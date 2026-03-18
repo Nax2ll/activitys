@@ -50,7 +50,6 @@ const games = [
   }
 ];
 
-// دالة بسيطة عشان ترتب أسماء الألعاب بشكل حلو
 function formatGameName(key) {
   const names = {
     dice: 'Dice',
@@ -60,7 +59,8 @@ function formatGameName(key) {
     plinko: 'Plinko',
     keno: 'Keno'
   };
-  return names[key] || key;
+
+  return names[key] || key || 'Unknown Game';
 }
 
 export default function HomePage() {
@@ -69,7 +69,6 @@ export default function HomePage() {
     return window.innerWidth <= MOBILE_BREAKPOINT;
   });
 
-  // ستيت جديدة عشان نحفظ فيها أعلى 3 ألعاب
   const [topGames, setTopGames] = useState([]);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
@@ -80,40 +79,52 @@ export default function HomePage() {
 
     handleResize();
     window.addEventListener('resize', handleResize);
+
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // UseEffect جديد عشان يجيب بيانات اليوزر من الباك اند
   useEffect(() => {
-    async function fetchUserStats() {
-      try {
-        // تنبيه: غير الرابط هذا للـ API اللي يرجع بيانات اليوزر من المونقو داتا بيز حقك
-        const res = await fetch('/api/user/profile'); 
-        const data = await res.json();
+    let active = true;
 
-        if (data && data.stats) {
-          // نحول أوبجكت الstats إلى مصفوفة (Array) عشان نقدر نرتبها
-          const gamesArray = Object.entries(data.stats).map(([key, value]) => ({
-            id: key,
-            name: formatGameName(key),
-            profit: value.profit || 0
+    async function fetchTopGames() {
+      try {
+        setIsLoadingStats(true);
+
+        const res = await getTopProfitGames();
+
+        if (!active) return;
+
+        if (res?.ok && Array.isArray(res.items)) {
+          const normalized = res.items.map((item) => ({
+            id: item.key || item.gameKey || item.name,
+            name: item.name || item.gameName || formatGameName(item.key || item.gameKey),
+            played: Number(item.played || 0),
+            wins: Number(item.wins || 0),
+            losses: Number(item.losses || 0),
+            profit: Number(item.profit || 0)
           }));
 
-          // نرتب الألعاب من الأعلى ربحاً إلى الأقل، وناخذ أول 3 بس
-          const sortedTop3 = gamesArray
-            .sort((a, b) => b.profit - a.profit)
-            .slice(0, 3);
-
-          setTopGames(sortedTop3);
+          setTopGames(normalized);
+        } else {
+          setTopGames([]);
         }
       } catch (error) {
-        console.error('Error fetching user stats:', error);
+        console.error('Error fetching top profit games:', error);
+        if (active) {
+          setTopGames([]);
+        }
       } finally {
-        setIsLoadingStats(false);
+        if (active) {
+          setIsLoadingStats(false);
+        }
       }
     }
 
-    fetchUserStats();
+    fetchTopGames();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
@@ -178,7 +189,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* المربع اللي تم تعديله */}
         <div
           style={{
             background: '#1a2c38',
@@ -199,7 +209,17 @@ export default function HomePage() {
 
           <div style={{ display: 'grid', gap: 12 }}>
             {isLoadingStats ? (
-              <div style={{ color: '#b1bad3', fontSize: 14 }}>Loading stats...</div>
+              <div
+                style={{
+                  background: '#233847',
+                  borderRadius: 16,
+                  padding: isMobile ? '12px 14px' : '14px 16px',
+                  color: '#b1bad3',
+                  fontSize: 14
+                }}
+              >
+                Loading stats...
+              </div>
             ) : topGames.length > 0 ? (
               topGames.map((game, i) => (
                 <div
@@ -221,8 +241,9 @@ export default function HomePage() {
                         fontSize: isMobile ? 14 : 15
                       }}
                     >
-                      {game.name}
+                      #{i + 1} {game.name}
                     </div>
+
                     <div
                       style={{
                         color: '#b1bad3',
@@ -231,9 +252,10 @@ export default function HomePage() {
                         lineHeight: 1.45
                       }}
                     >
-                      Rank #{i + 1}
+                      Played {game.played} • Wins {game.wins} • Losses {game.losses}
                     </div>
                   </div>
+
                   <div
                     style={{
                       color: game.profit >= 0 ? '#00e701' : '#ff4d4d',
@@ -242,12 +264,23 @@ export default function HomePage() {
                       flexShrink: 0
                     }}
                   >
-                    {game.profit >= 0 ? '+' : ''}{game.profit}
+                    {game.profit >= 0 ? '+' : ''}$
+                    {Number(game.profit).toLocaleString()}
                   </div>
                 </div>
               ))
             ) : (
-              <div style={{ color: '#b1bad3', fontSize: 14 }}>No games played yet.</div>
+              <div
+                style={{
+                  background: '#233847',
+                  borderRadius: 16,
+                  padding: isMobile ? '12px 14px' : '14px 16px',
+                  color: '#b1bad3',
+                  fontSize: 14
+                }}
+              >
+                No game stats yet.
+              </div>
             )}
           </div>
         </div>
