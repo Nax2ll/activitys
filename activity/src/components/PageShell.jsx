@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import BalanceBar from './BalanceBar';
 
 const sidebarItems = [
-  { label: 'Casino', path: '/' },
+  { label: 'Main menu', path: '/' },
   { label: 'Plinko', path: '/plinko' },
   { label: 'Dice', path: '/dice' },
   { label: 'Mines', path: '/mines' },
@@ -210,7 +210,7 @@ export default function PageShell({ title, children }) {
                   lineHeight: 1.5
                 }}
               >
-                Stake-style casino activity inside Discord
+                Milkyway Gambling Bot
               </div>
             </div>
 
