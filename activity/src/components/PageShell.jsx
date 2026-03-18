@@ -62,7 +62,7 @@ export default function PageShell({ title, children }) {
               letterSpacing: 1
             }}
           >
-            NAELBET
+            Milkyway
           </div>
 
           <div style={{ color: '#b1bad3', fontSize: 13, marginBottom: 12 }}>
@@ -134,7 +134,7 @@ export default function PageShell({ title, children }) {
                     marginBottom: 12
                   }}
                 >
-                  NAELBET
+                  Milkyway
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
