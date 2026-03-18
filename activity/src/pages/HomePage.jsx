@@ -152,7 +152,7 @@ export default function HomePage() {
         >
           <div
             style={{
-              color: '#713bc5',
+              color: '#00e701',
               fontWeight: 800,
               fontSize: isMobile ? 12 : 14,
               marginBottom: 10,
