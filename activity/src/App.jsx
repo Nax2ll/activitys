@@ -9,6 +9,7 @@ import KenoPage from './pages/KenoPage.jsx';
 import ChickenCrossPage from './pages/ChickenCrossPage.jsx'; 
 import SlotsPage from './pages/SlotsPage.jsx'; 
 import GuessPage from './pages/GuessPage.jsx'; 
+import MemoryPage from './pages/MemoryPage.jsx'; 
 
 
 export default function App() {
@@ -24,7 +25,7 @@ export default function App() {
       <Route path="/chicken-cross" element={<ChickenCrossPage />} />
       <Route path="/slots-machine" element={<SlotsPage />} />
       <Route path="/guess" element={<GuessPage />} />
-
+      <Route path="/memory" element={<MemoryPage />} />
     </Routes>
   );
 }
