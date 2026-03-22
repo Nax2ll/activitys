@@ -6,13 +6,19 @@ const router = express.Router();
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 
+// 💡 التعديل هنا: إضافة كل الألعاب الجديدة للقائمة
 const ALLOWED_GAMES = new Set([
   'plinko',
   'mines',
   'keno',
   'dice',
   'dragonTower',
-  'chickenCross'
+  'chickenCross',
+  'slots',
+  'guess',
+  'memory',
+  'camel_racing',
+  'guess_who'
 ]);
 
 function normalizeGame(game) {
@@ -110,7 +116,7 @@ router.post('/bet', async (req, res) => {
             type: 'bet',
             amount: stake,
             reason,
-            balanceAfter: user.wallet, // تقدر تغيّر الاسم لاحقًا إلى walletAfter إذا ودك
+            balanceAfter: user.wallet,
             status: 'open',
             result: 'pending',
             meta
@@ -297,6 +303,7 @@ router.post('/settle', async (req, res) => {
     session.endSession();
   }
 });
+
 router.get('/top-profit/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -309,13 +316,19 @@ router.get('/top-profit/:userId', async (req, res) => {
 
     const stats = user?.stats || {};
 
+    // 💡 التعديل هنا: إضافة تسميات الألعاب الجديدة
     const labels = {
       dice: 'Dice',
       mines: 'Mines',
       chickenCross: 'Chicken Cross',
       dragonTower: 'Dragon Tower',
       plinko: 'Plinko',
-      keno: 'Keno'
+      keno: 'Keno',
+      slots: 'Slots',
+      guess: 'Number Guess',
+      memory: 'Memory Gamble',
+      camel_racing: 'Camel Racing',
+      guess_who: 'AI Guess Who'
     };
 
     const items = Object.entries(stats)
@@ -340,4 +353,52 @@ router.get('/top-profit/:userId', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'Internal server error' });
   }
 });
+
+// 💡 التعديل هنا: المسار الجديد للتواصل مع الذكاء الاصطناعي (Gemini Proxy)
+router.post('/gemini', async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "Missing GEMINI_API_KEY in server environment" });
+    }
+
+    // استخدام النسخة المستقرة السريعة
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
+    
+    // استخدام dynamic import لـ node-fetch عشان يشتغل على كل إصدارات Node.js
+    const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2, // تقليل العشوائية للالتزام بالـ JSON
+          response_mime_type: "application/json"
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Gemini API Error from Google:", errText);
+      return res.status(response.status).json({ error: "Gemini API rejected the request" });
+    }
+
+    const data = await response.json();
+    const rawText = data.candidates[0].content.parts[0].text;
+    
+    // تنظيف المخرجات وتحويلها لـ JSON آمن
+    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    res.json(JSON.parse(cleanJson));
+  } catch (error) {
+    console.error("Backend Gemini Proxy Error:", error);
+    res.status(500).json({ error: "Internal Server Error during AI generation" });
+  }
+});
+
 module.exports = router;
