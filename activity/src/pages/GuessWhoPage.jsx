@@ -8,7 +8,7 @@ const MAX_GUESSES = 3;
 // إعدادات Gemini API
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''; // تأكد من وضع المفتاح في ملف .env
 // استخدمنا الموديل الأسرع للردود الفورية
-const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview'; 
+const GEMINI_MODEL = 'gemini-2.5-flash-lite'; 
 
 function formatMoney(val) {
   if (val <= 0) return '0.00';
