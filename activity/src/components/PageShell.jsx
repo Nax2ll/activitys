@@ -13,6 +13,7 @@ const sidebarItems = [
   { label: 'Slots Machine', path: '/slots-machine' },
   { label: 'Guessing Game', path: '/guess' },
     { label: 'Memory Game', path: '/memory' },
+  { label: 'Camel Racing', path: '/camel-racing' },
 
 ];
 
