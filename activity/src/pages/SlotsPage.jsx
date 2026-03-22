@@ -5,7 +5,7 @@ import { placeBet, settleGame } from '../lib/api';
 
 const REELS_COUNT = 3;
 const SPIN_DURATION = 1500; // وقت دوران البكرات بالملي ثانية
-const REEL_ANIM_DURATION = 100; // وقت الأنيميشن المتكرر داخل البكرة
+const REEL_ANIM_DURATION = 100; // سرعة الأنيميشن للبكرة
 
 // تعريف الرموز (Symbols) وقيمتها
 const SYMBOLS = [
@@ -16,7 +16,7 @@ const SYMBOLS = [
   { id: 'cherry', char: '🍒', weight: 18, payout: 2 }, // الكرز (الأكثر شيوعاً)
 ];
 
-// إنشاء مصفوفة موسعة للرموز بناءً على الـ weight عشان عشوائية أصدق
+// إنشاء مصفوفة موسعة للرموز بناءً على الوزن (weight)
 const EXPANDED_SYMBOLS = SYMBOLS.flatMap(sym => Array(sym.weight).fill(sym));
 
 function formatMoney(val) {
@@ -25,7 +25,6 @@ function formatMoney(val) {
   return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// دالة لاختيار رمز عشوائي
 function getRandomSymbol() {
   return EXPANDED_SYMBOLS[Math.floor(Math.random() * EXPANDED_SYMBOLS.length)];
 }
@@ -36,28 +35,23 @@ export default function SlotsPage() {
   const [spinning, setSpinning] = useState(false);
   const [message, setMessage] = useState('Pull the lever to start the spin!');
   const [history, setHistory] = useState([]);
-  const [roundId, setRoundId] = useState(null); // الـ State الصحيح
+  const [roundId, setRoundId] = useState(null);
 
-  // حالة البكرات الحالية
   const [reels, setReels] = useState([getRandomSymbol(), getRandomSymbol(), getRandomSymbol()]);
 
-  // refs للتعامل مع الـ Animation
   const reelRefs = useRef([]);
 
-  // حساب أفضل فوز ممكن (التيجان)
   const maxPayoutFactor = Math.max(...SYMBOLS.map(s => s.payout));
   const potentialBest = useMemo(() => {
     return Math.floor((Number(bet) || 0) * maxPayoutFactor);
   }, [bet]);
 
-  // دالة لمضاعفة أو تقسيم الرهان
   function multiplyBet() { setBet(String((Number(bet) || 0) * 2)); }
   function divideBet() {
     const newBet = (Number(bet) || 0) / 2;
     setBet(String(newBet < 1 ? 1 : newBet));
   }
 
-  // دالة الـ Spin الأساسية (السحب من الذراع)
   async function pullLever() {
     if (busy || spinning) return;
 
@@ -72,9 +66,9 @@ export default function SlotsPage() {
     setMessage('Spinning...');
     setRoundId(null);
 
-    // 1. استدعاء API الـ placeBet
+    // 1. استدعاء API الـ placeBet مع إضافة .id
     const betRes = await placeBet(
-      mockDiscordUser,
+      mockDiscordUser.id,
       amount,
       'slots',
       'slots spin bet',
@@ -91,7 +85,7 @@ export default function SlotsPage() {
     const currentRoundId = betRes.roundId;
     setRoundId(currentRoundId);
 
-    // 2. تفعيل أنيميشن دوران البكرات (CSS Keyframes)
+    // 2. تفعيل أنيميشن البكرات
     reelRefs.current.forEach((ref) => {
       if (ref) {
         ref.style.animation = 'none';
@@ -100,13 +94,12 @@ export default function SlotsPage() {
       }
     });
 
-    // 3. اختيار النتيجة عشوائياً (الـ Reels النهائية)
     const resultReels = [getRandomSymbol(), getRandomSymbol(), getRandomSymbol()];
 
-    // 4. الانتظار لوقت الدوران
+    // 3. الانتظار لوقت الدوران
     await new Promise(resolve => setTimeout(resolve, SPIN_DURATION));
 
-    // 5. إيقاف أنيميشن البكرات (تدريجياً من اليسار لليمين)
+    // 4. إيقاف الأنيميشن بالتدريج
     for (let i = 0; i < REELS_COUNT; i++) {
       if (reelRefs.current[i]) {
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -122,7 +115,7 @@ export default function SlotsPage() {
 
     setSpinning(false);
 
-    // 6. التحقق من النتيجة وحساب الـ payout
+    // 5. حساب النتيجة
     const finalSymbols = resultReels;
     const allSame = finalSymbols.every(s => s.id === finalSymbols[0].id);
 
@@ -137,9 +130,9 @@ export default function SlotsPage() {
 
     const win = payout > 0;
 
-    // 7. استدعاء API الـ settleGame
+    // 6. استدعاء API الـ settleGame مع إضافة .id وتمرير الـ roundId
     const settleRes = await settleGame(
-      mockDiscordUser,
+      mockDiscordUser.id,
       currentRoundId,
       payout,
       'slots',
@@ -156,10 +149,9 @@ export default function SlotsPage() {
       return;
     }
 
-    // 8. تحديث الـ UI بالنتيجة
     if (win) {
       const winner = finalSymbols[0];
-      setMessage(`Jackpot! x${winner.payout} Profit! ${winner.char}${winner.char}${winner.char} payout: $${formatMoney(payout)}`);
+      setMessage(`Jackpot! x${winner.payout} Profit! payout: $${formatMoney(payout)}`);
     } else {
       setMessage('Unlucky. Better luck next time!');
     }
@@ -171,9 +163,9 @@ export default function SlotsPage() {
     <PageShell title="Slot Machine">
       <style>{`
         @keyframes slotsReelSpin {
-          0% { transform: translateY(-15px); opacity: 0.8; }
-          50% { transform: translateY(15px); opacity: 1; }
-          100% { transform: translateY(-15px); opacity: 0.8; }
+          0% { transform: translateY(-20px); opacity: 0.7; }
+          50% { transform: translateY(20px); opacity: 1; }
+          100% { transform: translateY(-20px); opacity: 0.7; }
         }
         
         @keyframes slotsLeverPull {
@@ -269,9 +261,9 @@ export default function SlotsPage() {
             <SummaryItem label="Potential Payout" value={`$${formatMoney(potentialBest)}`} />
           </div>
 
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f212e', borderRadius: 22, border: '1px solid rgba(255,255,255,0.05)', padding: '30px 20px', position: 'relative' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f212e', borderRadius: 22, border: '1px solid rgba(255,255,255,0.05)', padding: '40px 20px', position: 'relative' }}>
             
-            {/* Slot Machine Container + Lever */}
+            {/* Slot Machine & Lever Container */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               
               {/* Reels Box */}
@@ -305,26 +297,25 @@ export default function SlotsPage() {
                     >
                       {symbol.char}
                     </div>
-                    {/* Shadow overlay to make it look like a rolling cylinder */}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.3) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.3) 100%)', pointerEvents: 'none' }} />
                   </div>
                 ))}
               </div>
 
-              {/* Lever Box (Attached directly to the right side of the reels) */}
+              {/* Lever Box (المقربة واللاصقة بالآلة) */}
               <div
                 style={{
                   width: 50,
                   height: 180,
-                  marginLeft: -10, // يسحب الذراع لليسار عشان يلزق بالمكينة
+                  marginLeft: -5, // تسحب الذراع لليسار عشان يلزق تماماً
                   position: 'relative',
                   cursor: busy ? 'default' : 'pointer',
                   zIndex: 5
                 }}
                 onClick={pullLever}
               >
-                {/* قاعدة الذراع اللاصقة بالمكينة */}
-                <div style={{ width: 25, height: 60, background: '#132634', borderTopRightRadius: 12, borderBottomRightRadius: 12, position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: 0, border: '2px solid rgba(255,255,255,0.05)', borderLeft: 'none' }} />
+                {/* قاعدة الذراع */}
+                <div style={{ width: 25, height: 80, background: '#132634', borderTopRightRadius: 16, borderBottomRightRadius: 16, position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: 0, border: '3px solid #233847', borderLeft: 'none', boxShadow: '5px 0 10px rgba(0,0,0,0.3)' }} />
                 
                 {/* عصا الذراع */}
                 <div
@@ -358,11 +349,10 @@ export default function SlotsPage() {
                   />
                 </div>
               </div>
-
             </div>
 
-            {/* Paytable (شروط الفوز تحت المكينة) */}
-            <div style={{ marginTop: 40, width: '100%' }}>
+            {/* Paytable (جدول الفوز أسفل المكينة مباشرة) */}
+            <div style={{ marginTop: 40, width: '100%', maxWidth: 550 }}>
               <div style={{ fontSize: 14, color: '#b1bad3', fontWeight: 800, textAlign: 'center', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
                 Winning Combinations
               </div>
