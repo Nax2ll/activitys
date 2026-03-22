@@ -56,33 +56,59 @@ export default function GuessWhoPage() {
   }
 
   // الاتصال بـ Gemini API
-  async function callGemini(prompt) {
-    if (!GEMINI_API_KEY) {
-      throw new Error("Gemini API Key is missing in .env (VITE_GEMINI_API_KEY)");
-    }
-    
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2, // تقليل العشوائية عشان الـ JSON يرجع مضبوط
-          response_mime_type: "application/json"
-        }
-      })
-    });
-
-    if (!response.ok) throw new Error("Gemini API request failed.");
-    const data = await response.json();
-    const rawText = data.candidates[0].content.parts[0].text;
-    
-    // تنظيف المخرجات في حال أضاف ماردكداون
-    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
+async function callGemini(prompt, responseSchema = null) {
+  if (!GEMINI_API_KEY) {
+    throw new Error('Missing VITE_GEMINI_API_KEY');
   }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.2,
+      response_mime_type: 'application/json',
+      ...(responseSchema ? { response_schema: responseSchema } : {})
+    }
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': GEMINI_API_KEY
+    },
+    body: JSON.stringify(body)
+  });
+
+  const raw = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Gemini ${response.status}: ${raw}`);
+  }
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(`Gemini returned non-JSON response: ${raw}`);
+  }
+
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((p) => p?.text || '')
+    .join('')
+    .trim();
+
+  if (!text) {
+    throw new Error(`Gemini returned no candidate text: ${raw}`);
+  }
+
+  try {
+    return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+  } catch {
+    throw new Error(`Model text was not valid JSON: ${text}`);
+  }
+}
 
   // بدء اللعبة واختيار الشخصيات
   async function startGame() {
@@ -145,9 +171,9 @@ export default function GuessWhoPage() {
       setChatLog([{ sender: 'ai', text: `أهلاً بك! لقد اخترت 9 عناصر من ثيم "${aiData.theme}". لقد اخترت واحداً منها سراً... ابدأ بطرح أسئلتك (نعم/لا) أو قم بتخمين العنصر مباشرة بالضغط عليه!` }]);
 
     } catch (err) {
-      console.error(err);
-      setMessage('Failed to connect to Gemini AI. Try again.');
-    }
+  console.error('Gemini error:', err);
+  setMessage(err?.message || 'Gemini request failed');
+}
 
     setBusy(false);
   }
