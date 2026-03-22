@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import PageShell from '../components/PageShell';
 import { placeBet, settleGame } from '../lib/api';
 
-const PAIRS_COUNT = 10;
+const PAIRS_COUNT = 8; // تم التعديل إلى 8 أزواج (16 بطاقة)
 const MEMORIZE_TIME = 10; // 10 ثوانٍ للحفظ
 const MAX_MISTAKES = 3;
 const PAYOUT_MULTIPLIER = 5; // مضاعف الفوز 5 أضعاف!
@@ -101,8 +101,9 @@ export default function MemoryPage() {
     emitBalanceUpdated(betRes.balance);
     setRoundId(betRes.roundId);
 
-    // 2. تجهيز البطاقات (دبلجة الرموز وخلطها)
-    const deck = [...SYMBOLS, ...SYMBOLS];
+    // 2. تجهيز البطاقات لـ 16 مربع (8 أزواج)
+    const activeSymbols = SYMBOLS.slice(0, PAIRS_COUNT);
+    const deck = [...activeSymbols, ...activeSymbols];
     const shuffledDeck = shuffleArray(deck).map((symbol, index) => ({
       id: index,
       symbol,
@@ -210,12 +211,13 @@ export default function MemoryPage() {
       setCards(revealedCards);
     }
 
+    // التعديل هنا: حفظ آخر 3 نتائج فقط
     setHistory(prev => [{
       won: isWin,
       payout,
       mistakes: totalMistakes,
       id: Math.random()
-    }, ...prev].slice(0, 5));
+    }, ...prev].slice(0, 3));
   }
 
   // رسم القلوب (عدد الأخطاء المتبقية)
@@ -230,7 +232,7 @@ export default function MemoryPage() {
         .memory-card {
           perspective: 1000px;
           cursor: pointer;
-          aspect-ratio: 1 / 1.1;
+          aspect-ratio: 1 / 1; /* تم التعديل لتكون مربعة تماماً */
           width: 100%;
         }
         .memory-card-inner {
@@ -253,7 +255,7 @@ export default function MemoryPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 38px;
+          font-size: 44px; /* تكبير الرمز ليناسب المربعات الـ 16 */
           box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
         /* الوجه المخفي للبطاقة (علامة استفهام أو لوقو) */
@@ -372,21 +374,20 @@ export default function MemoryPage() {
               <div style={{ textAlign: 'center', color: '#b1bad3' }}>
                 <div style={{ fontSize: 60, opacity: 0.2, marginBottom: 10 }}>🧠</div>
                 <h2>Memory Gamble</h2>
-                <p>Find all 10 pairs without making 3 mistakes.</p>
+                <p>Find all {PAIRS_COUNT} pairs without making {MAX_MISTAKES} mistakes.</p>
               </div>
             )}
 
             {(phase !== 'idle' || cards.length > 0) && (
               <div style={{ 
                 display: 'grid', 
-                gridTemplateColumns: 'repeat(5, 1fr)', // 5 أعمدة
-                gridTemplateRows: 'repeat(4, 1fr)',    // 4 صفوف = 20 بطاقة
+                gridTemplateColumns: 'repeat(4, 1fr)', // التعديل: 4 أعمدة
+                gridTemplateRows: 'repeat(4, 1fr)',    // التعديل: 4 صفوف = 16 بطاقة
                 gap: 12, 
                 width: '100%', 
-                maxWidth: 550 
+                maxWidth: 450 // تصغير العرض الإجمالي ليناسب الـ 4 أعمدة بشكل أجمل
               }}>
                 {cards.map((card, index) => {
-                  // متى نكشف البطاقة؟ (في وقت الحفظ، أو إذا كانت متطابقة، أو إذا تم النقر عليها الآن)
                   const isFlipped = phase === 'memorize' || card.isMatched || flippedIndices.includes(index);
                   
                   return (
