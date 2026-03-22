@@ -7,7 +7,7 @@ const PAYOUT_MULTIPLIER = 4.8; // مضاعف الفوز (قريب من 5 للح�
 const TRACK_FINISH_LINE = 85; // خط النهاية عند 85% من الشاشة عشان يوقف الجمل بشكل حلو
 
 const CAMEL_COLORS = [
-  { id: 1, color: '#ff4d4d', name: 'زعبيل ' },
+  { id: 1, color: '#ff4d4d', name: 'زعبيل' },
   { id: 2, color: '#3b82f6', name: 'مبشرة' },
   { id: 3, color: '#10b981', name: 'الشملال' },
   { id: 4, color: '#f59e0b', name: 'المضبر' },
@@ -122,6 +122,7 @@ export default function CamelRacingPage() {
 
     // 4. إعلان الفائز
     const actualWinnerCamel = raceWinnerIndex + 1; // الاندكس يبدأ من 0، والنياق من 1
+    const actualWinnerName = CAMEL_COLORS[raceWinnerIndex].name;
     setWinner(actualWinnerCamel);
     setPhase('finished');
 
@@ -137,7 +138,7 @@ export default function CamelRacingPage() {
       currentRoundId,
       payout,
       'camel_racing',
-      `camel racing payout. Winner: Camel ${actualWinnerCamel}`,
+      `camel racing payout. Winner: ${actualWinnerName}`,
       { selectedCamel, winner: actualWinnerCamel, multiplier: isWin ? PAYOUT_MULTIPLIER : 0 },
       isWin ? 'win' : 'loss'
     );
@@ -153,19 +154,19 @@ export default function CamelRacingPage() {
     emitBalanceUpdated(settleRes.balance);
 
     if (isWin) {
-      setMessage(`🎉 Camel ${actualWinnerCamel} won! You bagged $${formatMoney(payout)}!`);
+      setMessage(`🎉 ${actualWinnerName} won! You bagged $${formatMoney(payout)}!`);
     } else {
-      setMessage(`❌ Camel ${actualWinnerCamel} took the lead. Better luck next race!`);
+      setMessage(`❌ ${actualWinnerName} took the lead. Better luck next race!`);
     }
 
-    // تحديث السجل
+    // تحديث السجل إلى 3 نتائج فقط
     setHistory(prev => [{
       selected: selectedCamel,
       winner: actualWinnerCamel,
       won: isWin,
       payout,
       id: currentRoundId
-    }, ...prev].slice(0, 5));
+    }, ...prev].slice(0, 3));
   }
 
   return (
@@ -314,7 +315,7 @@ export default function CamelRacingPage() {
                         {item.won ? 'Win!' : 'Loss'}
                       </div>
                       <div style={{ color: '#b1bad3', fontSize: 13, marginTop: 4 }}>
-                        Picked: {item.selected} | Winner: {item.winner}
+                        Picked: {CAMEL_COLORS[item.selected - 1].name} | Winner: {CAMEL_COLORS[item.winner - 1].name}
                       </div>
                     </div>
                     <div style={{ fontWeight: 900, color: item.won ? '#00e701' : 'white' }}>
@@ -331,8 +332,9 @@ export default function CamelRacingPage() {
         <div style={{ background: '#1a2c38', borderRadius: 24, padding: 24, border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 18px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column' }}>
           
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            <SummaryItem label="Your Camel" value={`Camel ${selectedCamel}`} accent={CAMEL_COLORS[selectedCamel-1].color} />
-            <SummaryItem label="Winner" value={winner ? `Camel ${winner}` : '-'} accent={winner ? CAMEL_COLORS[winner-1].color : 'white'} />
+            {/* استخدام الاسم العربي بدلاً من الرقم */}
+            <SummaryItem label="Your Camel" value={CAMEL_COLORS[selectedCamel-1].name} accent={CAMEL_COLORS[selectedCamel-1].color} />
+            <SummaryItem label="Winner" value={winner ? CAMEL_COLORS[winner-1].name : '-'} accent={winner ? CAMEL_COLORS[winner-1].color : 'white'} />
           </div>
 
           <div style={{ flex: 1, background: '#0f212e', borderRadius: 22, border: '1px solid rgba(255,255,255,0.05)', padding: '20px', position: 'relative' }}>
