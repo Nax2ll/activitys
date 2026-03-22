@@ -11,8 +11,8 @@ const sidebarItems = [
   // أضف السطر هذا
   { label: 'Chicken Cross', path: '/chicken-cross' } ,
   { label: 'Slots Machine', path: '/slots-machine' },
-  { label: 'Guessing Game', path: '/guess' } 
-
+  { label: 'Guessing Game', path: '/guess' },
+    { label: 'Memory Game', path: '/memory' },
 
 ];
 
