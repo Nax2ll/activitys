@@ -14,7 +14,6 @@ const sidebarItems = [
   { label: 'Guessing Game', path: '/guess' },
     { label: 'Memory Game', path: '/memory' },
   { label: 'Camel Racing', path: '/camel-racing' },
-  { label: 'Guess Who', path: '/guess-who' },
 
 ];
 
