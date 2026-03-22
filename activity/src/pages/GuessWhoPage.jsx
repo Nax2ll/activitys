@@ -5,11 +5,6 @@ import { placeBet, settleGame } from '../lib/api';
 const MAX_QUESTIONS = 3;
 const MAX_GUESSES = 3;
 
-// إعدادات Gemini API
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''; // تأكد من وضع المفتاح في ملف .env
-// استخدمنا الموديل الأسرع للردود الفورية
-const GEMINI_MODEL = 'gemini-2.5-flash-lite'; 
-
 function formatMoney(val) {
   if (val <= 0) return '0.00';
   if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';
@@ -33,7 +28,7 @@ export default function GuessWhoPage() {
   const [roundId, setRoundId] = useState(null);
   const [theme, setTheme] = useState('');
   const [secretItem, setSecretItem] = useState('');
-  const [grid, setGrid] = useState([]); // [{ name: 'Luffy', eliminated: false }]
+  const [grid, setGrid] = useState([]); 
   const [questionsLeft, setQuestionsLeft] = useState(MAX_QUESTIONS);
   const [guessesLeft, setGuessesLeft] = useState(MAX_GUESSES);
   
@@ -55,60 +50,21 @@ export default function GuessWhoPage() {
     setBet(String(newBet < 1 ? 1 : newBet));
   }
 
-  // الاتصال بـ Gemini API
-async function callGemini(prompt, responseSchema = null) {
-  if (!GEMINI_API_KEY) {
-    throw new Error('Missing VITE_GEMINI_API_KEY');
-  }
+  // الاتصال بـ Gemini عبر السيرفر الخاص بنا (Proxy) لتخطي حظر ديسكورد
+  async function callGemini(prompt) {
+    const response = await fetch('/games/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
-  const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      response_mime_type: 'application/json',
-      ...(responseSchema ? { response_schema: responseSchema } : {})
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || "Failed to fetch from our backend Gemini proxy.");
     }
-  };
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': GEMINI_API_KEY
-    },
-    body: JSON.stringify(body)
-  });
-
-  const raw = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`Gemini ${response.status}: ${raw}`);
+    
+    return await response.json();
   }
-
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    throw new Error(`Gemini returned non-JSON response: ${raw}`);
-  }
-
-  const text = data?.candidates?.[0]?.content?.parts
-    ?.map((p) => p?.text || '')
-    .join('')
-    .trim();
-
-  if (!text) {
-    throw new Error(`Gemini returned no candidate text: ${raw}`);
-  }
-
-  try {
-    return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-  } catch {
-    throw new Error(`Model text was not valid JSON: ${text}`);
-  }
-}
 
   // بدء اللعبة واختيار الشخصيات
   async function startGame() {
@@ -117,11 +73,6 @@ async function callGemini(prompt, responseSchema = null) {
     const amount = Number(bet);
     if (!amount || amount <= 0) {
       setMessage('Enter a valid bet amount.');
-      return;
-    }
-
-    if (!GEMINI_API_KEY) {
-      setMessage('⚠️ Error: VITE_GEMINI_API_KEY is not set in .env');
       return;
     }
 
@@ -171,9 +122,9 @@ async function callGemini(prompt, responseSchema = null) {
       setChatLog([{ sender: 'ai', text: `أهلاً بك! لقد اخترت 9 عناصر من ثيم "${aiData.theme}". لقد اخترت واحداً منها سراً... ابدأ بطرح أسئلتك (نعم/لا) أو قم بتخمين العنصر مباشرة بالضغط عليه!` }]);
 
     } catch (err) {
-  console.error('Gemini error:', err);
-  setMessage(err?.message || 'Gemini request failed');
-}
+      console.error(err);
+      setMessage('Failed to connect to AI server. Check console.');
+    }
 
     setBusy(false);
   }
@@ -253,10 +204,9 @@ async function callGemini(prompt, responseSchema = null) {
     if (isCorrect) {
       // الفوز!
       const amount = Number(bet);
-      // حساب المضاعف بناءً على التخمينات المتبقية (أول تخمين = 3 متبقي = x15)
+      // حساب المضاعف بناءً على التخمينات المتبقية
       let multiplier = newGuessesLeft === 2 ? 15 : (newGuessesLeft === 1 ? 10 : 5);
       const payout = amount * multiplier;
-      const profit = payout - amount;
 
       await finishGame(true, payout, multiplier, itemName);
     } else {
@@ -281,8 +231,6 @@ async function callGemini(prompt, responseSchema = null) {
   async function finishGame(isWin, payout, multiplier, finalGuess) {
     setPhase('settling');
     setMessage('Settling game results...');
-
-    const amount = Number(bet);
 
     const settleRes = await settleGame(
       undefined,
@@ -310,7 +258,6 @@ async function callGemini(prompt, responseSchema = null) {
       setChatLog(prev => [...prev, { sender: 'ai', text: `أحسنت! إجابة صحيحة، العنصر السري هو "${secretItem}". لقد فزت بـ ${multiplier} ضعف رهانك! 💰` }]);
     } else {
       setMessage(`💀 Game Over! The secret was ${secretItem}.`);
-      // إظهار العنصر السري بتلوينه بالأخضر
       setGrid(prev => prev.map(item => item.name === secretItem ? { ...item, eliminated: false, highlight: true } : { ...item, eliminated: true }));
     }
 
@@ -321,7 +268,7 @@ async function callGemini(prompt, responseSchema = null) {
       payout,
       multiplier,
       id: Math.random()
-    }, ...prev].slice(0, 3)); // الاحتفاظ بآخر 3 نتائج فقط
+    }, ...prev].slice(0, 3)); 
   }
 
   return (
@@ -447,11 +394,10 @@ async function callGemini(prompt, responseSchema = null) {
             <div style={{ marginTop: 16, color: '#b1bad3', minHeight: 30, lineHeight: 1.6, fontWeight: 600 }}>{message}</div>
           </div>
 
-          {/* صندوق المحادثة (مفصول تحت لوحة التحكم) */}
+          {/* صندوق المحادثة */}
           <div style={{ background: '#1a2c38', borderRadius: 24, padding: 20, border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', height: 400 }}>
             <div style={{ fontWeight: 900, marginBottom: 15, color: 'white' }}>AI Oracle Chat 🤖</div>
             
-            {/* منطقة رسائل الشات */}
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingRight: 5, marginBottom: 15 }}>
               {chatLog.length === 0 && <div style={{ color: '#b1bad3', textAlign: 'center', marginTop: 50 }}>Chat will appear here...</div>}
               {chatLog.map((msg, i) => (
@@ -462,7 +408,6 @@ async function callGemini(prompt, responseSchema = null) {
               <div ref={chatEndRef} />
             </div>
 
-            {/* إدخال الأسئلة */}
             <form onSubmit={askQuestion} style={{ display: 'flex', gap: 10 }}>
               <input
                 type="text"
@@ -528,7 +473,7 @@ async function callGemini(prompt, responseSchema = null) {
             )}
           </div>
 
-          {/* سجل النتائج أسفل اللوحة */}
+          {/* سجل النتائج */}
           <div style={{ marginTop: 24 }}>
             <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10, color: 'white' }}>Last Results</div>
             <div style={{ display: 'grid', gap: 10 }}>
@@ -560,7 +505,6 @@ async function callGemini(prompt, responseSchema = null) {
   );
 }
 
-// UI Components
 function SummaryItem({ label, value, accent = 'white' }) {
   return (
     <div style={{ background: '#132634', borderRadius: 16, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)', flex: 1, minWidth: 0 }}>
