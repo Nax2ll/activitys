@@ -10,6 +10,7 @@ import ChickenCrossPage from './pages/ChickenCrossPage.jsx';
 import SlotsPage from './pages/SlotsPage.jsx'; 
 import GuessPage from './pages/GuessPage.jsx'; 
 import MemoryPage from './pages/MemoryPage.jsx'; 
+import CamelRacingPage from './pages/CamelRacingPage.jsx'; 
 
 
 export default function App() {
@@ -26,6 +27,8 @@ export default function App() {
       <Route path="/slots-machine" element={<SlotsPage />} />
       <Route path="/guess" element={<GuessPage />} />
       <Route path="/memory" element={<MemoryPage />} />
+      <Route path="/camel-racing" element={<CamelRacingPage />} />
+
     </Routes>
   );
 }
