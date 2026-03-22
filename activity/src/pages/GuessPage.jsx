@@ -4,8 +4,8 @@ import { placeBet, settleGame } from '../lib/api';
 
 const MIN_NUMBER = 0;
 const MAX_NUMBER = 100;
-const MAX_GUESSES = 3;
-const PAYOUT_MULTIPLIER = 15; // مضاعف الفوز 15 ضعف الرهان!
+const MAX_GUESSES = 5; // تم التعديل إلى 5 محاولات
+const PAYOUT_MULTIPLIER = 10; // تم التعديل إلى 10 أضعاف
 
 function formatMoney(val) {
   if (val <= 0) return '0.00';
@@ -68,6 +68,7 @@ export default function GuessPage() {
     }
 
     setBusy(true);
+    setPhase('idle'); // تعديل الخلل: إرجاع الحالة إلى الانتظار فوراً لإخفاء الرقم السابق أو الجديد
     setMessage('Placing bet...');
     setRoundId(null);
     setGuesses([]);
@@ -94,7 +95,7 @@ export default function GuessPage() {
     emitBalanceUpdated(betRes.balance);
     setRoundId(betRes.roundId);
     setPhase('playing');
-    setMessage('Guess the number between 0 and 100! (3 Tries)');
+    setMessage(`Guess the number between 0 and 100! (${MAX_GUESSES} Tries)`);
     setBusy(false);
   }
 
@@ -151,12 +152,13 @@ export default function GuessPage() {
         setMessage(`❌ Out of tries! The secret number was ${secretNumber}.`);
       }
 
+      // التعديل: إظهار آخر 3 نتائج فقط
       setHistory(prev => [{ 
         secret: secretNumber, 
         won: isCorrect, 
         payout, 
         tries: newGuesses.length 
-      }, ...prev].slice(0, 5));
+      }, ...prev].slice(0, 3));
       
     } else {
       setMessage(hint === 'higher' ? `🔼 The number is higher than ${guessVal}!` : `🔽 The number is lower than ${guessVal}!`);
