@@ -47,6 +47,35 @@ const games = [
     path: '/chicken-cross',
     image: '🐔 CROSS',
     accent: '#5b3f24'
+  },
+  // الألعاب الجديدة
+  {
+    title: 'Slot Machine',
+    subtitle: 'Spin the reels and hit the jackpot combination.',
+    path: '/slots',
+    image: '🎰 SLOTS',
+    accent: '#b8860b' // ذهبي
+  },
+  {
+    title: 'Number Guess',
+    subtitle: 'Use logic and hints to find the secret number.',
+    path: '/guess',
+    image: '🔢 GUESS',
+    accent: '#ff9800' // برتقالي
+  },
+  {
+    title: 'Memory Gamble',
+    subtitle: 'Test your brain and match the hidden cards.',
+    path: '/memory',
+    image: '🧠 MEMORY',
+    accent: '#673ab7' // بنفسجي
+  },
+  {
+    title: 'Camel Racing',
+    subtitle: 'Bet on your favorite camel in the Desert Derby.',
+    path: '/camel-racing',
+    image: '🐪 RACING',
+    accent: '#c2a077' // رملي
   }
 ];
 
@@ -57,7 +86,11 @@ function formatGameName(key) {
     chickenCross: 'Chicken Cross',
     dragonTower: 'Dragon Tower',
     plinko: 'Plinko',
-    keno: 'Keno'
+    keno: 'Keno',
+    slots: 'Slots',
+    guess: 'Number Guess',
+    memory: 'Memory Gamble',
+    camel_racing: 'Camel Racing'
   };
 
   return names[key] || key || 'Unknown Game';
@@ -184,7 +217,7 @@ export default function HomePage() {
               lineHeight: 1.6
             }}
           >
-            A Halal way to experince gambling without losing your real money,
+            A Halal way to experience gambling without losing your real money.
           </div>
         </div>
 
