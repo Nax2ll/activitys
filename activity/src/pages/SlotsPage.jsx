@@ -36,14 +36,13 @@ export default function SlotsPage() {
   const [spinning, setSpinning] = useState(false);
   const [message, setMessage] = useState('Pull the lever to start the spin!');
   const [history, setHistory] = useState([]);
-  const [roundId, setRoundId] = useState(null);
+  const [roundId, setRoundId] = useState(null); // الـ State الصحيح
 
   // حالة البكرات الحالية
   const [reels, setReels] = useState([getRandomSymbol(), getRandomSymbol(), getRandomSymbol()]);
 
   // refs للتعامل مع الـ Animation
   const reelRefs = useRef([]);
-  const animIntervals = useRef([]);
 
   // حساب أفضل فوز ممكن (التيجان)
   const maxPayoutFactor = Math.max(...SYMBOLS.map(s => s.payout));
@@ -71,7 +70,7 @@ export default function SlotsPage() {
     setBusy(true);
     setSpinning(true);
     setMessage('Spinning...');
-    setActiveRoundId(null);
+    setRoundId(null);
 
     // 1. استدعاء API الـ placeBet
     const betRes = await placeBet(
@@ -90,11 +89,10 @@ export default function SlotsPage() {
     }
 
     const currentRoundId = betRes.roundId;
-    setActiveRoundId(currentRoundId);
+    setRoundId(currentRoundId);
 
     // 2. تفعيل أنيميشن دوران البكرات (CSS Keyframes)
-    reelRefs.current.forEach((ref, i) => {
-      // إيقاف أي أنيميشن سابق وإعطاؤه وقت قليل للراحة
+    reelRefs.current.forEach((ref) => {
       if (ref) {
         ref.style.animation = 'none';
         void ref.offsetHeight; // Force reflow
@@ -105,16 +103,14 @@ export default function SlotsPage() {
     // 3. اختيار النتيجة عشوائياً (الـ Reels النهائية)
     const resultReels = [getRandomSymbol(), getRandomSymbol(), getRandomSymbol()];
 
-    // 4. الانتظار لوقت الدوران (SPIN_DURATION)
+    // 4. الانتظار لوقت الدوران
     await new Promise(resolve => setTimeout(resolve, SPIN_DURATION));
 
     // 5. إيقاف أنيميشن البكرات (تدريجياً من اليسار لليمين)
     for (let i = 0; i < REELS_COUNT; i++) {
       if (reelRefs.current[i]) {
-        // الانتظار قليلاً قبل إيقاف البكرة التالية عشان الترتيب
-        await new Promise(resolve => setTimeout(resolve, 150));
+        await new Promise(resolve => setTimeout(resolve, 200));
         
-        // إيقاف الـ Animation وتثبيت النتيجة النهائية
         reelRefs.current[i].style.animation = 'none';
         setReels(prev => {
           const next = [...prev];
@@ -153,7 +149,7 @@ export default function SlotsPage() {
     );
 
     setBusy(false);
-    setActiveRoundId(null);
+    setRoundId(null);
 
     if (!settleRes.ok) {
       setMessage(settleRes.error || 'Failed to settle payout');
@@ -174,27 +170,28 @@ export default function SlotsPage() {
   return (
     <PageShell title="Slot Machine">
       <style>{`
-        /* أنيميشن دوران البكرة السريع */
         @keyframes slotsReelSpin {
-          0% { transform: translateY(-5px); }
-          50% { transform: translateY(5px); }
-          100% { transform: translateY(-5px); }
+          0% { transform: translateY(-15px); opacity: 0.8; }
+          50% { transform: translateY(15px); opacity: 1; }
+          100% { transform: translateY(-15px); opacity: 0.8; }
         }
         
-        /* أنيميشن حركة الذراع (الـ Lever) */
         @keyframes slotsLeverPull {
           0% { transform: scaleY(1); }
-          50% { transform: scaleY(0.4) translateY(30px); }
+          50% { transform: scaleY(0.3) translateY(40px); }
           100% { transform: scaleY(1); }
         }
 
         .reel-symbol {
-          font-size: 70px;
+          font-size: 75px;
           display: flex;
           align-items: center;
           justify-content: center;
           height: 100%;
-          position: relative;
+          width: 100%;
+          position: absolute;
+          top: 0;
+          left: 0;
         }
       `}</style>
       
@@ -227,27 +224,38 @@ export default function SlotsPage() {
             onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
             onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
           >
-            {busy ? 'Busy...' : 'Pull Lever (Spin)'}
+            {busy ? 'Spinning...' : 'Pull Lever (Spin)'}
           </button>
 
           <div style={{ marginTop: 18, background: '#132634', borderRadius: 18, padding: 16, border: '1px solid rgba(255,255,255,0.05)', lineHeight: 1.9 }}>
             <div style={statRow}><span style={statLabel}>Current Bet</span><span style={statValue}>${formatMoney(Number(bet) || 0)}</span></div>
             <div style={statRow}><span style={statLabel}>Max Possible Payout</span><span style={{ ...statValue, color: '#00e701' }}>${formatMoney(potentialBest)}</span></div>
-            <div style={statRow}><span style={statLabel}>Winning Combos</span><span style={statValue}>{SYMBOLS.length}</span></div>
           </div>
 
           <div style={{ marginTop: 16, color: '#b1bad3', minHeight: 24, lineHeight: 1.6 }}>{message}</div>
 
-          {/* Paytable (شروط الفوز) */}
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Paytable</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-              {SYMBOLS.map(sym => (
-                <div key={sym.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#132634', padding: 10, borderRadius: 14, border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div style={{ fontSize: 24 }}>{sym.char}{sym.char}{sym.char}</div>
-                  <div style={{ fontWeight: 800 }}>x{sym.payout}</div>
-                </div>
-              ))}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Last Results</div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {history.length === 0 ? (
+                <div style={{ background: '#132634', borderRadius: 14, padding: 14, color: '#b1bad3' }}>No spins yet.</div>
+              ) : (
+                history.map((item, index) => (
+                  <div key={index} style={{ background: '#132634', borderRadius: 14, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, color: item.payout > 0 ? '#00e701' : 'white' }}>
+                        {item.reels[0].char} {item.reels[1].char} {item.reels[2].char}
+                      </div>
+                      <div style={{ color: '#b1bad3', fontSize: 13, marginTop: 4 }}>
+                        {item.payout > 0 ? `Win!` : 'Loss'}
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 900, color: item.payout > 0 ? '#00e701' : 'white' }}>
+                      ${formatMoney(item.payout)}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -256,87 +264,118 @@ export default function SlotsPage() {
         <div style={{ background: '#1a2c38', borderRadius: 24, padding: 24, border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 18px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column' }}>
           
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            <SummaryItem label="Current Symbol" value={busy ? "?" : reels.map(r => r.char).join(' ')} />
+            <SummaryItem label="Current Match" value={busy ? "?" : reels.every(r => r.id === reels[0].id) ? reels[0].char : "None"} />
             <SummaryItem label="Multiplier" value={busy ? "x?" : SYMBOLS.some(s => reels.every(r => r.id === s.id)) ? `x${reels[0].payout}` : "x0"} accent={busy ? "white" : reels.every(r => r.id === reels[0].id) ? "#00e701" : "white"} />
             <SummaryItem label="Potential Payout" value={`$${formatMoney(potentialBest)}`} />
           </div>
 
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f212e', borderRadius: 22, border: '1px solid rgba(255,255,255,0.05)', padding: '40px 60px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f212e', borderRadius: 22, border: '1px solid rgba(255,255,255,0.05)', padding: '30px 20px', position: 'relative' }}>
             
-            {/* Slot Machine UI */}
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${REELS_COUNT}, 1fr)`, gap: 15, width: '100%', maxWidth: 500, height: 180, position: 'relative', zIndex: 10 }}>
-              {reels.map((symbol, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: 'white',
-                    borderRadius: 14,
-                    boxShadow: '0 10px 20px rgba(0,0,0,0.15), inset 0 0 10px rgba(0,0,0,0.05)',
-                    overflow: 'hidden',
-                    position: 'relative',
-                  }}
-                >
+            {/* Slot Machine Container + Lever */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              
+              {/* Reels Box */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: `repeat(${REELS_COUNT}, 1fr)`, 
+                gap: 15, 
+                background: '#0a151d', 
+                padding: '20px', 
+                borderRadius: 24, 
+                border: '4px solid #233847',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.5), inset 0 10px 20px rgba(0,0,0,0.3)',
+                width: 450,
+                height: 220,
+                zIndex: 10
+              }}>
+                {reels.map((symbol, i) => (
                   <div
-                    ref={el => reelRefs.current[i] = el}
-                    className="reel-symbol"
-                    style={{ transform: 'translateY(0)' }}
+                    key={i}
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: 14,
+                      boxShadow: 'inset 0 10px 20px rgba(0,0,0,0.1)',
+                      overflow: 'hidden',
+                      position: 'relative',
+                    }}
                   >
-                    {symbol.char}
+                    <div
+                      ref={el => reelRefs.current[i] = el}
+                      className="reel-symbol"
+                    >
+                      {symbol.char}
+                    </div>
+                    {/* Shadow overlay to make it look like a rolling cylinder */}
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.3) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.3) 100%)', pointerEvents: 'none' }} />
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            {/* الذراع الأحمر (Lever) */}
-            <div
-              style={{
-                position: 'absolute',
-                right: -25,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 60,
-                height: 180,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: busy ? 'default' : 'pointer',
-                zIndex: 5
-              }}
-              onClick={pullLever}
-            >
+              {/* Lever Box (Attached directly to the right side of the reels) */}
               <div
                 style={{
-                  width: 16,
-                  height: 140,
-                  background: '#2f4553',
-                  borderRadius: 8,
+                  width: 50,
+                  height: 180,
+                  marginLeft: -10, // يسحب الذراع لليسار عشان يلزق بالمكينة
                   position: 'relative',
-                  transformOrigin: 'top center',
-                  animation: spinning ? 'slotsLeverPull 400ms ease-in-out' : 'none'
+                  cursor: busy ? 'default' : 'pointer',
+                  zIndex: 5
                 }}
+                onClick={pullLever}
               >
-                {/* الكرة الحمراء في أعلى الذراع */}
+                {/* قاعدة الذراع اللاصقة بالمكينة */}
+                <div style={{ width: 25, height: 60, background: '#132634', borderTopRightRadius: 12, borderBottomRightRadius: 12, position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: 0, border: '2px solid rgba(255,255,255,0.05)', borderLeft: 'none' }} />
+                
+                {/* عصا الذراع */}
                 <div
                   style={{
+                    width: 14,
+                    height: 120,
+                    background: 'linear-gradient(90deg, #b1bad3, #ffffff)',
+                    borderRadius: 8,
                     position: 'absolute',
-                    top: -25,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 50,
-                    height: 50,
-                    borderRadius: '50%',
-                    background: 'radial-gradient(circle at 35% 35%, #ff4d4d, #b31c1c 80%)',
-                    boxShadow: '0 5px 15px rgba(179,28,28,0.4)',
-                    border: '3px solid #0f212e'
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    left: 15,
+                    transformOrigin: 'bottom center',
+                    animation: spinning ? 'slotsLeverPull 500ms ease-in-out' : 'none'
                   }}
-                />
+                >
+                  {/* الكرة الحمراء */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: -25,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 45,
+                      height: 45,
+                      borderRadius: '50%',
+                      background: 'radial-gradient(circle at 30% 30%, #ff7373, #ff4d4d 40%, #b31c1c 100%)',
+                      boxShadow: '0 5px 15px rgba(179,28,28,0.5)',
+                      border: '2px solid rgba(0,0,0,0.2)'
+                    }}
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Paytable (شروط الفوز تحت المكينة) */}
+            <div style={{ marginTop: 40, width: '100%' }}>
+              <div style={{ fontSize: 14, color: '#b1bad3', fontWeight: 800, textAlign: 'center', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Winning Combinations
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 15, flexWrap: 'wrap' }}>
+                {SYMBOLS.map(sym => (
+                  <div key={sym.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#132634', padding: '12px 20px', borderRadius: 16, border: '1px solid rgba(255,255,255,0.04)', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
+                    <div style={{ fontSize: 22, letterSpacing: 2, marginBottom: 4 }}>{sym.char}{sym.char}{sym.char}</div>
+                    <div style={{ fontWeight: 900, color: '#00e701' }}>x{sym.payout}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
-          </div>
-          
-          <div style={{ marginTop: 24, textAlign: 'center', color: '#b1bad3' }}>
-            Pull the red lever to start the spin! Match three of a kind in the reels to win.
           </div>
         </div>
       </div>
