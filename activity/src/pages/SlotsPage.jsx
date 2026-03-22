@@ -3,8 +3,6 @@ import PageShell from '../components/PageShell';
 import { placeBet, settleGame } from '../lib/api';
 
 const REELS_COUNT = 3;
-const SPIN_DURATION = 1500; // وقت دوران البكرات بالملي ثانية
-const REEL_ANIM_DURATION = 100; // سرعة الأنيميشن للبكرة
 
 // تعريف الرموز (Symbols) وقيمتها
 const SYMBOLS = [
@@ -28,7 +26,11 @@ function getRandomSymbol() {
   return EXPANDED_SYMBOLS[Math.floor(Math.random() * EXPANDED_SYMBOLS.length)];
 }
 
-// الدالة المسؤولة عن تحديث الرصيد في الشريط العلوي
+// دالة تأخير للأنيميشن
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function emitBalanceUpdated(balance) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
@@ -76,7 +78,7 @@ export default function SlotsPage() {
     setMessage('Spinning...');
     setRoundId(null);
 
-    // 1. استدعاء API الـ placeBet مع إرسال undefined مثل باقي الألعاب
+    // 1. استدعاء API الـ placeBet
     const betRes = await placeBet(
       undefined,
       amount,
@@ -92,46 +94,61 @@ export default function SlotsPage() {
       return;
     }
 
-    // تحديث الرصيد في الواجهة العلوية
     emitBalanceUpdated(betRes.balance);
-
     const currentRoundId = betRes.roundId;
     setRoundId(currentRoundId);
 
-    // 2. تفعيل أنيميشن البكرات
-    reelRefs.current.forEach((ref) => {
+    // 2. إعداد النتيجة الفائزة مسبقاً (Luck Booster - 30% win rate)
+    let finalSymbols;
+    if (Math.random() < 0.30) { 
+      // فوز إجباري
+      const winSymbol = getRandomSymbol();
+      finalSymbols = [winSymbol, winSymbol, winSymbol];
+    } else {
+      // عشوائي تماماً
+      finalSymbols = [getRandomSymbol(), getRandomSymbol(), getRandomSymbol()];
+    }
+
+    // 3. تفعيل أنيميشن دوران البكرات الواقعي
+    reelRefs.current.forEach(ref => {
       if (ref) {
-        ref.style.animation = 'none';
-        void ref.offsetHeight; // Force reflow
-        ref.style.animation = `slotsReelSpin ${REEL_ANIM_DURATION}ms linear infinite`;
+        ref.classList.remove('stop-bump');
+        ref.classList.add('spinning-blur');
       }
     });
 
-    const resultReels = [getRandomSymbol(), getRandomSymbol(), getRandomSymbol()];
+    const intervals = reelRefs.current.map((ref, i) => {
+      return setInterval(() => {
+        if (ref) ref.innerText = getRandomSymbol().char;
+      }, 50 + i * 15); // سرعة تغيير الرموز (البكرات تدور بسرعات مختلفة قليلاً)
+    });
 
-    // 3. الانتظار لوقت الدوران
-    await new Promise(resolve => setTimeout(resolve, SPIN_DURATION));
+    // وقت الدوران الأساسي
+    await sleep(1000);
 
-    // 4. إيقاف الأنيميشن بالتدريج
+    // 4. إيقاف البكرات بالتدريج (من اليسار لليمين)
     for (let i = 0; i < REELS_COUNT; i++) {
+      clearInterval(intervals[i]);
       if (reelRefs.current[i]) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        reelRefs.current[i].style.animation = 'none';
-        setReels(prev => {
-          const next = [...prev];
-          next[i] = resultReels[i];
-          return next;
-        });
+        reelRefs.current[i].classList.remove('spinning-blur');
+        reelRefs.current[i].classList.add('stop-bump');
+        reelRefs.current[i].innerText = finalSymbols[i].char; // تثبيت الرمز النهائي
       }
+      
+      // تحديث الواجهة (State)
+      setReels(prev => {
+        const next = [...prev];
+        next[i] = finalSymbols[i];
+        return next;
+      });
+
+      await sleep(350); // الانتظار بين وقوف كل بكرة
     }
 
     setSpinning(false);
 
     // 5. حساب النتيجة
-    const finalSymbols = resultReels;
     const allSame = finalSymbols.every(s => s.id === finalSymbols[0].id);
-
     let payout = 0;
     let profit = -amount;
 
@@ -143,7 +160,7 @@ export default function SlotsPage() {
 
     const win = payout > 0;
 
-    // 6. استدعاء API الـ settleGame مع إرسال undefined
+    // 6. تسوية اللعبة
     const settleRes = await settleGame(
       undefined,
       currentRoundId,
@@ -162,7 +179,6 @@ export default function SlotsPage() {
       return;
     }
 
-    // تحديث الرصيد في الواجهة العلوية بعد الفوز أو الخسارة
     emitBalanceUpdated(settleRes.balance);
 
     if (win) {
@@ -172,17 +188,34 @@ export default function SlotsPage() {
       setMessage('Unlucky. Better luck next time!');
     }
 
-    // حفظ النتيجة في السجل
-    setHistory(prev => [{ payout, profit, reels: finalSymbols, id: currentRoundId }, ...prev].slice(0, 8));
+    // التعديل: حفظ آخر 3 نتائج فقط 
+    setHistory(prev => [{ payout, profit, reels: finalSymbols, id: currentRoundId }, ...prev].slice(0, 3));
   }
 
   return (
     <PageShell title="Slot Machine">
       <style>{`
-        @keyframes slotsReelSpin {
-          0% { transform: translateY(-20px); opacity: 0.7; }
-          50% { transform: translateY(20px); opacity: 1; }
-          100% { transform: translateY(-20px); opacity: 0.7; }
+        /* تأثير الدوران السريع مع الغبش */
+        .spinning-blur {
+          animation: fastRoll 0.15s infinite linear;
+          filter: blur(2px);
+          opacity: 0.8;
+        }
+
+        @keyframes fastRoll {
+          0% { transform: translateY(-40%); }
+          100% { transform: translateY(40%); }
+        }
+
+        /* تأثير الارتداد الواقعي عند وقوف البكرة */
+        .stop-bump {
+          animation: reelBump 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes reelBump {
+          0% { transform: translateY(30px); }
+          50% { transform: translateY(-10px); }
+          100% { transform: translateY(0); }
         }
         
         @keyframes slotsLeverPull {
@@ -201,6 +234,7 @@ export default function SlotsPage() {
           position: absolute;
           top: 0;
           left: 0;
+          will-change: transform;
         }
       `}</style>
       
@@ -319,7 +353,7 @@ export default function SlotsPage() {
                 ))}
               </div>
 
-              {/* Lever Box (المقربة واللاصقة بالآلة) */}
+              {/* Lever Box */}
               <div
                 style={{
                   width: 50,
@@ -368,7 +402,7 @@ export default function SlotsPage() {
               </div>
             </div>
 
-            {/* Paytable (جدول الفوز أسفل المكينة مباشرة) */}
+            {/* Paytable (جدول الفوز) */}
             <div style={{ marginTop: 40, width: '100%', maxWidth: 550 }}>
               <div style={{ fontSize: 14, color: '#b1bad3', fontWeight: 800, textAlign: 'center', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
                 Winning Combinations
