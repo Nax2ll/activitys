@@ -10,7 +10,9 @@ const sidebarItems = [
   { label: 'Keno', path: '/keno' },
   // أضف السطر هذا
   { label: 'Chicken Cross', path: '/chicken-cross' } ,
-  { label: 'Slots Machine', path: '/slots-machine' } 
+  { label: 'Slots Machine', path: '/slots-machine' },
+  { label: 'Guessing Game', path: '/guess' } 
+
 
 ];
 
@@ -42,7 +44,7 @@ export default function PageShell({ title, children }) {
             letterSpacing: 1
           }}
         >
-          NAELBET
+          Milkyway
         </div>
 
         <div style={{ color: '#b1bad3', fontSize: 13, marginBottom: 12 }}>
