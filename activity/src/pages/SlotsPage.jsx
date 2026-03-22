@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import PageShell from '../components/PageShell';
-import { mockDiscordUser } from '../lib/mockUser';
 import { placeBet, settleGame } from '../lib/api';
 
 const REELS_COUNT = 3;
@@ -27,6 +26,17 @@ function formatMoney(val) {
 
 function getRandomSymbol() {
   return EXPANDED_SYMBOLS[Math.floor(Math.random() * EXPANDED_SYMBOLS.length)];
+}
+
+// الدالة المسؤولة عن تحديث الرصيد في الشريط العلوي
+function emitBalanceUpdated(balance) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('casino:balance-updated', {
+        detail: { balance }
+      })
+    );
+  }
 }
 
 export default function SlotsPage() {
@@ -66,9 +76,9 @@ export default function SlotsPage() {
     setMessage('Spinning...');
     setRoundId(null);
 
-    // 1. استدعاء API الـ placeBet مع إضافة .id
+    // 1. استدعاء API الـ placeBet مع إرسال undefined مثل باقي الألعاب
     const betRes = await placeBet(
-      mockDiscordUser.id,
+      undefined,
       amount,
       'slots',
       'slots spin bet',
@@ -81,6 +91,9 @@ export default function SlotsPage() {
       setMessage(betRes.error || 'Bet failed');
       return;
     }
+
+    // تحديث الرصيد في الواجهة العلوية
+    emitBalanceUpdated(betRes.balance);
 
     const currentRoundId = betRes.roundId;
     setRoundId(currentRoundId);
@@ -130,9 +143,9 @@ export default function SlotsPage() {
 
     const win = payout > 0;
 
-    // 6. استدعاء API الـ settleGame مع إضافة .id وتمرير الـ roundId
+    // 6. استدعاء API الـ settleGame مع إرسال undefined
     const settleRes = await settleGame(
-      mockDiscordUser.id,
+      undefined,
       currentRoundId,
       payout,
       'slots',
@@ -149,6 +162,9 @@ export default function SlotsPage() {
       return;
     }
 
+    // تحديث الرصيد في الواجهة العلوية بعد الفوز أو الخسارة
+    emitBalanceUpdated(settleRes.balance);
+
     if (win) {
       const winner = finalSymbols[0];
       setMessage(`Jackpot! x${winner.payout} Profit! payout: $${formatMoney(payout)}`);
@@ -156,6 +172,7 @@ export default function SlotsPage() {
       setMessage('Unlucky. Better luck next time!');
     }
 
+    // حفظ النتيجة في السجل
     setHistory(prev => [{ payout, profit, reels: finalSymbols, id: currentRoundId }, ...prev].slice(0, 8));
   }
 
@@ -307,7 +324,7 @@ export default function SlotsPage() {
                 style={{
                   width: 50,
                   height: 180,
-                  marginLeft: -5, // تسحب الذراع لليسار عشان يلزق تماماً
+                  marginLeft: -5,
                   position: 'relative',
                   cursor: busy ? 'default' : 'pointer',
                   zIndex: 5
