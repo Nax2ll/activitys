@@ -163,9 +163,13 @@ export default function CamelRacingPage() {
             {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                type="text" lang="en" dir="ltr" inputMode="decimal"
                 value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                  val = val.replace(/[^0-9.]/g, '');
+                  setBet(val);
+                }} 
                 disabled={busy || phase === 'racing'} 
                 style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
               />
