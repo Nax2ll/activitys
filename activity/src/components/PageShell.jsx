@@ -35,7 +35,6 @@ export default function PageShell({ title, children }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // إغلاق القائمة عند تغيير الصفحة في الجوال
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
@@ -43,7 +42,7 @@ export default function PageShell({ title, children }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0f212e', color: 'white', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       
-      {/* Sidebar (Desktop) or Drawer (Mobile) */}
+      {/* Sidebar / Mobile Drawer */}
       <div style={{ 
         position: isMobile ? 'fixed' : 'sticky', 
         top: 0, left: 0, bottom: 0, 
@@ -81,7 +80,6 @@ export default function PageShell({ title, children }) {
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
       {isMobile && menuOpen && (
         <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
       )}
@@ -89,34 +87,42 @@ export default function PageShell({ title, children }) {
       {/* Main Content Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         
-        {/* Top Header */}
+        {/* Top Header - Balance Only on Mobile */}
         <div style={{ 
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+          display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-end' : 'space-between', 
           padding: isMobile ? '12px 16px' : '20px 32px', 
           background: isMobile ? '#1a2c38' : 'transparent',
           borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
           position: 'sticky', top: 0, zIndex: 30
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {isMobile && (
-              <button onClick={() => setMenuOpen(true)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 24, cursor: 'pointer', padding: 0 }}>
-                ☰
-              </button>
-            )}
-            {!isMobile && <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900 }}>{title}</h1>}
-          </div>
-          
-          <div style={{ width: isMobile ? 160 : 250 }}>
+          {!isMobile && <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900 }}>{title}</h1>}
+          <div style={{ width: isMobile ? 180 : 250 }}>
             <BalanceBar />
           </div>
         </div>
 
         {/* Page Content */}
         <div style={{ padding: isMobile ? '16px' : '0 32px 32px', flex: 1, maxWidth: 1400, margin: '0 auto', width: '100%' }}>
-          {isMobile && <h1 style={{ margin: '0 0 20px 0', fontSize: 24, fontWeight: 900 }}>{title}</h1>}
+          
+          {/* Mobile Title & Menu Button */}
+          {isMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900 }}>{title}</h1>
+              <button 
+                onClick={() => setMenuOpen(true)} 
+                style={{ 
+                  background: '#233847', border: '1px solid rgba(255,255,255,0.1)', 
+                  color: 'white', fontSize: 14, fontWeight: 800, cursor: 'pointer', 
+                  padding: '8px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 
+                }}
+              >
+                <span style={{ fontSize: 18 }}>☰</span> Menu
+              </button>
+            </div>
+          )}
+          
           {children}
         </div>
-        
       </div>
     </div>
   );
