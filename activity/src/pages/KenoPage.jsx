@@ -183,7 +183,7 @@ export default function KenoPage() {
     if (missedSelected) return { background: 'linear-gradient(180deg, #7a4d12, #59380d)', border: '1px solid rgba(255,255,255,0.12)', color: 'white' };
     if (drawnOnly) return { background: 'linear-gradient(180deg, #8b1e2f, #681523)', border: '1px solid rgba(255,255,255,0.12)', color: 'white' };
     if (selected) return { background: 'linear-gradient(180deg, #00e701, #00b90b)', border: '1px solid rgba(255,255,255,0.2)', color: '#08120b', boxShadow: '0 8px 16px rgba(0,231,1,0.2)' };
-    return { background: 'linear-gradient(180deg, #223543, #1a2b37)', border: '1px solid rgba(255,255,255,0.06)', color: 'white' };
+    return { background: 'linear-gradient(180deg, #223543, #1a2c37)', border: '1px solid rgba(255,255,255,0.06)', color: 'white' };
   }
 
   return (
@@ -200,12 +200,16 @@ export default function KenoPage() {
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
           <div style={{ marginBottom: 18 }}>
             
-            {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
+            {/* الصف الأول: مربع النص (مع تحويل تلقائي للإنجليزي) + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                type="text" lang="en" dir="ltr" inputMode="decimal"
                 value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                  val = val.replace(/[^0-9.]/g, '');
+                  setBet(val);
+                }} 
                 disabled={phase === 'drawing' || busy} 
                 style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
               />
