@@ -173,9 +173,14 @@ export default function GuessPage() {
             {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                type="text" lang="en" dir="ltr" inputMode="decimal"
                 value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
+                onChange={(e) => {
+                  // تحويل الأرقام العربية إلى إنجليزية ومنع الحروف
+                  let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                  val = val.replace(/[^0-9.]/g, '');
+                  setBet(val);
+                }} 
                 disabled={busy || phase === 'playing'} 
                 style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
               />
@@ -264,13 +269,15 @@ export default function GuessPage() {
               <form onSubmit={submitGuess} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 300 }}>
                 <div style={{ fontSize: isMobile ? 35 : 40, marginBottom: 20 }}>🤔</div>
                 <input
-                  type="number"
+                  type="text"
                   lang="en" dir="ltr" inputMode="numeric"
                   autoFocus
-                  min={MIN_NUMBER}
-                  max={MAX_NUMBER}
                   value={currentGuess}
-                  onChange={(e) => setCurrentGuess(e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                    val = val.replace(/[^0-9]/g, '');
+                    setCurrentGuess(val);
+                  }}
                   disabled={busy}
                   placeholder="Enter 0 - 100"
                   style={{ width: '100%', background: '#132634', border: '2px solid #233847', borderRadius: 16, padding: isMobile ? '16px' : '20px', fontSize: isMobile ? 26 : 32, fontWeight: 900, color: 'white', textAlign: 'center', outline: 'none', boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.2)' }}
