@@ -1,122 +1,123 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import BalanceBar from './BalanceBar';
 
-const sidebarItems = [
-  { label: 'Casino', path: '/' },
-  { label: 'Plinko', path: '/plinko' },
-  { label: 'Dice', path: '/dice' },
-  { label: 'Mines', path: '/mines' },
-  { label: 'Dragon Tower', path: '/dragon-tower' },
-  { label: 'Keno', path: '/keno' },
-  // أضف السطر هذا
-  { label: 'Chicken Cross', path: '/chicken-cross' } ,
-  { label: 'Slots Machine', path: '/slots-machine' },
-  { label: 'Guessing Game', path: '/guess' },
-    { label: 'Memory Game', path: '/memory' },
-  { label: 'Camel Racing', path: '/camel-racing' },
+const MOBILE_BREAKPOINT = 820;
 
+const NAV_LINKS = [
+  { path: '/', label: '🏠 Home' },
+  { path: '/plinko', label: '🔴 Plinko' },
+  { path: '/dice', label: '🎲 Dice' },
+  { path: '/mines', label: '💣 Mines' },
+  { path: '/dragon-tower', label: '🐉 Dragon Tower' },
+  { path: '/keno', label: '🔵 Keno' },
+  { path: '/chicken-cross', label: '🐔 Chicken Cross' },
+  { path: '/slots-machine', label: '🎰 Slots' },
+  { path: '/guess', label: '🔢 Guess' },
+  { path: '/memory', label: '🧠 Memory' },
+  { path: '/camel-racing', label: '🐪 Camel Racing' }
 ];
 
 export default function PageShell({ title, children }) {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+  const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+      if (window.innerWidth > MOBILE_BREAKPOINT) setMenuOpen(false);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // إغلاق القائمة عند تغيير الصفحة في الجوال
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#0f212e',
-        color: 'white',
-        display: 'grid',
-        gridTemplateColumns: '260px 1fr'
-      }}
-    >
-      <aside
-        style={{
-          background: '#112331',
-          borderRight: '1px solid rgba(255,255,255,0.05)',
-          padding: 20
-        }}
-      >
-        <div
-          style={{
-            fontSize: 28,
-            fontWeight: 900,
-            marginBottom: 24,
-            letterSpacing: 1
-          }}
-        >
-          Milkyway
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#0f212e', color: 'white', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      
+      {/* Sidebar (Desktop) or Drawer (Mobile) */}
+      <div style={{ 
+        position: isMobile ? 'fixed' : 'sticky', 
+        top: 0, left: 0, bottom: 0, 
+        width: 260, 
+        background: '#1a2c38', 
+        borderRight: '1px solid rgba(255,255,255,0.05)', 
+        zIndex: 50,
+        transform: isMobile ? (menuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+        transition: 'transform 0.3s ease',
+        display: 'flex', flexDirection: 'column'
+      }}>
+        <div style={{ padding: '24px 20px', fontSize: 24, fontWeight: 900, color: '#00e701', letterSpacing: 1, borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>NaelBet</span>
+          {isMobile && (
+            <button onClick={() => setMenuOpen(false)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 20, cursor: 'pointer' }}>✖</button>
+          )}
         </div>
-
-        <div style={{ color: '#b1bad3', fontSize: 13, marginBottom: 12 }}>
-          Games
-        </div>
-
-        <div style={{ display: 'grid', gap: 10 }}>
-          {sidebarItems.map((item) => {
-            const active = location.pathname === item.path;
+        
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ color: '#b1bad3', fontSize: 13, fontWeight: 800, padding: '0 8px 10px', textTransform: 'uppercase', letterSpacing: 1 }}>Casino Games</div>
+          {NAV_LINKS.map(link => {
+            const active = location.pathname === link.path;
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                style={{
-                  background: active ? '#2f4553' : '#1a2c38',
-                  color: 'white',
-                  padding: '14px 16px',
-                  borderRadius: 14,
-                  fontWeight: active ? 800 : 600,
-                  border: '1px solid rgba(255,255,255,0.04)'
-                }}
-              >
-                {item.label}
+              <Link key={link.path} to={link.path} style={{
+                display: 'block', padding: '12px 16px', borderRadius: 12, textDecoration: 'none',
+                color: active ? 'white' : '#b1bad3',
+                background: active ? '#2f4553' : 'transparent',
+                fontWeight: active ? 800 : 600,
+                transition: 'all 0.15s ease'
+              }}>
+                {link.label}
               </Link>
             );
           })}
         </div>
-      </aside>
+      </div>
 
-      <main style={{ padding: 20 }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 20,
-              gap: 20
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 34, fontWeight: 900 }}>{title}</div>
-              <div style={{ color: '#b1bad3', marginTop: 6, fontSize: 14 }}>
-                Stake-style casino activity inside Discord
-              </div>
-            </div>
+      {/* Mobile Menu Overlay */}
+      {isMobile && menuOpen && (
+        <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
+      )}
 
-            <div style={{ minWidth: 340 }}>
-              <BalanceBar />
-            </div>
+      {/* Main Content Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        
+        {/* Top Header */}
+        <div style={{ 
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+          padding: isMobile ? '12px 16px' : '20px 32px', 
+          background: isMobile ? '#1a2c38' : 'transparent',
+          borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
+          position: 'sticky', top: 0, zIndex: 30
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {isMobile && (
+              <button onClick={() => setMenuOpen(true)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 24, cursor: 'pointer', padding: 0 }}>
+                ☰
+              </button>
+            )}
+            {!isMobile && <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900 }}>{title}</h1>}
           </div>
+          
+          <div style={{ width: isMobile ? 160 : 250 }}>
+            <BalanceBar />
+          </div>
+        </div>
 
-          {location.pathname !== '/' ? (
-            <div style={{ marginBottom: 20 }}>
-              <Link
-                to="/"
-                style={{
-                  background: '#1a2c38',
-                  padding: '10px 16px',
-                  borderRadius: 12,
-                  display: 'inline-block'
-                }}
-              >
-                ← Back to Casino
-              </Link>
-            </div>
-          ) : null}
-
+        {/* Page Content */}
+        <div style={{ padding: isMobile ? '16px' : '0 32px 32px', flex: 1, maxWidth: 1400, margin: '0 auto', width: '100%' }}>
+          {isMobile && <h1 style={{ margin: '0 0 20px 0', fontSize: 24, fontWeight: 900 }}>{title}</h1>}
           {children}
         </div>
-      </main>
+        
+      </div>
     </div>
   );
 }
