@@ -150,14 +150,18 @@ export default function DicePage() {
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
           <div style={{ marginBottom: 18 }}>
             
-            {/* الصف الأول: مربع النص + الأزرار بجانبه */}
+            {/* الصف الأول: مربع النص (مع تحويل تلقائي للإنجليزي) + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                type="text" lang="en" dir="ltr" inputMode="decimal"
                 value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                  val = val.replace(/[^0-9.]/g, '');
+                  setBet(val);
+                }} 
                 disabled={phase === 'rolling' || busy} 
-                style={{ ...inputStyle, marginBottom: 0, flex: 1 }} 
+                style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
               />
               <button onClick={() => modifyBet(0.5)} disabled={phase === 'rolling' || busy} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
                 1/2
