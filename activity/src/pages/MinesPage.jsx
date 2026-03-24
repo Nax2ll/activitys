@@ -84,14 +84,8 @@ export default function MinesPage() {
   const potentialPayout = useMemo(() => Math.floor((Number(bet) || 0) * currentMultiplier), [bet, currentMultiplier]);
   const nextPayout = useMemo(() => Math.floor((Number(bet) || 0) * nextMultiplier), [bet, nextMultiplier]);
   const remainingGems = useMemo(() => 25 - minesCount - revealedSafeCount, [minesCount, revealedSafeCount]);
-  const safeTilesRemaining = useMemo(() => 25 - minesCount - revealedSafeCount, [minesCount, revealedSafeCount]);
-  const nextSafeChance = useMemo(() => {
-    const hiddenTiles = board.filter((tile) => !tile.revealed).length;
-    if (phase !== 'playing' || hiddenTiles <= 0) return null;
-    return ((safeTilesRemaining / hiddenTiles) * 100).toFixed(2);
-  }, [board, phase, safeTilesRemaining]);
-
-  // دالة ضرب أو قسمة الرهان الحالي
+  
+  // دالة ضرب أو قسمة الرهان الحالي (x2, /2)
   function modifyBet(multiplier) {
     const current = Number(bet) || 0;
     let newBet = Math.floor(current * multiplier);
@@ -100,6 +94,7 @@ export default function MinesPage() {
     setBet(String(newBet));
   }
 
+  // دالة تحديد نسبة الرهان من الرصيد الكلي
   function setFractionBet(fraction) {
     const newBet = Math.floor(userBalance * fraction);
     setBet(String(newBet > 0 ? newBet : 1));
@@ -227,12 +222,16 @@ export default function MinesPage() {
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
           <div style={{ marginBottom: 18 }}>
             
-            {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
+            {/* الصف الأول: مربع النص (مع تحويل تلقائي للإنجليزي) + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                type="text" lang="en" dir="ltr" inputMode="decimal"
                 value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                  val = val.replace(/[^0-9.]/g, '');
+                  setBet(val);
+                }} 
                 disabled={phase === 'playing' || busy} 
                 style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
               />
