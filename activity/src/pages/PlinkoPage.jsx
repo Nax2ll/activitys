@@ -232,12 +232,24 @@ export default function PlinkoPage() {
             
             {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
-                value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
-                style={{ ...inputStyle, marginBottom: 0, flex: 1 }} 
-              />
+            <input 
+  type="text" 
+  lang="en" 
+  dir="ltr" 
+  inputMode="decimal" 
+  value={bet} 
+  onChange={(e) => {
+    // 1. تحويل الأرقام العربية (الهندية) إلى إنجليزية تلقائياً
+    let englishNumbers = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    
+    // 2. السماح فقط بالأرقام الإنجليزية والنقطة العشرية (ومنع الحروف)
+    englishNumbers = englishNumbers.replace(/[^0-9.]/g, '');
+    
+    setBet(englishNumbers);
+  }} 
+  disabled={busy} // (تأكد تحط المتغيرات الصح حسب اللعبة، مثلا phase === 'playing' || busy)
+  style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
+/>
               <button onClick={() => modifyBet(0.5)} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
                 1/2
               </button>
