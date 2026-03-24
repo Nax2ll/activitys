@@ -6,7 +6,6 @@ const MOBILE_BREAKPOINT = 820;
 export default function BalanceBar() {
   const [balance, setBalance] = useState(0);
   const [status, setStatus] = useState('loading');
-  const [errorText, setErrorText] = useState('');
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth <= MOBILE_BREAKPOINT;
@@ -14,44 +13,34 @@ export default function BalanceBar() {
 
   useEffect(() => {
     let mounted = true;
-
-    function handleResize() {
-      setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
-    }
+    function handleResize() { setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT); }
 
     async function load() {
       try {
         const data = await getBalance();
-
         if (!mounted) return;
-
         if (data?.ok) {
           setBalance(Number(data.wallet ?? data.balance) || 0);
           setStatus('ready');
-          setErrorText('');
         } else {
           setStatus('error');
-          setErrorText(data?.error || 'Unknown error');
         }
       } catch (error) {
-        if (!mounted) return;
-        setStatus('error');
-        setErrorText(error?.message || 'Balance load failed');
+        if (mounted) setStatus('error');
       }
     }
 
     function handleBalanceUpdated(event) {
       if (!mounted) return;
       const next = Number(event?.detail?.wallet ?? event?.detail?.balance);
-      if (!Number.isFinite(next)) return;
-      setBalance(next);
-      setStatus('ready');
-      setErrorText('');
+      if (Number.isFinite(next)) {
+        setBalance(next);
+        setStatus('ready');
+      }
     }
 
     handleResize();
     load();
-
     window.addEventListener('resize', handleResize);
     window.addEventListener('casino:balance-updated', handleBalanceUpdated);
 
@@ -63,51 +52,17 @@ export default function BalanceBar() {
   }, []);
 
   return (
-    <div
-      style={{
-        background: '#1a2c38',
-        borderRadius: isMobile ? 16 : 18,
-        padding: isMobile ? '12px 14px' : '14px 18px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.22)',
-        border: '1px solid rgba(255,255,255,0.05)',
-        width: '100%',
-        minWidth: 0
-      }}
-    >
-      <div
-        style={{
-          color: '#b1bad3',
-          fontSize: isMobile ? 11 : 12,
-          marginBottom: 6
-        }}
-      >
-        Balance
+    <div style={{
+      background: '#132634', borderRadius: 14,
+      padding: isMobile ? '8px 12px' : '10px 16px',
+      border: '1px solid rgba(255,255,255,0.08)',
+      display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+      width: '100%', minWidth: 0
+    }}>
+      <div style={{ color: '#b1bad3', fontSize: isMobile ? 10 : 12, fontWeight: 700, marginBottom: 2 }}>Balance</div>
+      <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 900, color: '#00e701', lineHeight: 1 }}>
+        {status === 'loading' ? '...' : `$${Number(balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
       </div>
-
-      <div
-        style={{
-          fontSize: isMobile ? 22 : 28,
-          fontWeight: 900,
-          lineHeight: 1.15,
-          wordBreak: 'break-word'
-        }}
-      >
-        {status === 'loading' ? 'Loading...' : `$ ${Number(balance).toLocaleString()}`}
-      </div>
-
-      {status === 'error' ? (
-        <div
-          style={{
-            color: '#ff8d8d',
-            fontSize: isMobile ? 11 : 12,
-            marginTop: 6,
-            lineHeight: 1.5,
-            wordBreak: 'break-word'
-          }}
-        >
-          {errorText}
-        </div>
-      ) : null}
     </div>
   );
 }
