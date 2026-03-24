@@ -102,6 +102,16 @@ export default function KenoPage() {
     return values.length ? Math.max(...values) : 0;
   }, [pickCount]);
 
+  // دالة ضرب أو قسمة الرهان الحالي (x2, /2)
+  function modifyBet(multiplier) {
+    const current = Number(bet) || 0;
+    let newBet = Math.floor(current * multiplier);
+    if (newBet < 1) newBet = 1;
+    if (newBet > userBalance && userBalance > 0) newBet = Math.floor(userBalance);
+    setBet(String(newBet));
+  }
+
+  // دالة تحديد نسبة الرهان من الرصيد الكلي
   function setFractionBet(fraction) {
     const newBet = Math.floor(userBalance * fraction);
     setBet(String(newBet > 0 ? newBet : 1));
@@ -189,11 +199,29 @@ export default function KenoPage() {
 
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
           <div style={{ marginBottom: 18 }}>
-            <input type="number" lang="en" dir="ltr" inputMode="decimal" min="1" value={bet} onChange={(e) => setBet(e.target.value)} disabled={phase === 'drawing' || busy} style={{ ...inputStyle, marginBottom: 8 }} />
+            
+            {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input 
+                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                value={bet} 
+                onChange={(e) => setBet(e.target.value)} 
+                disabled={phase === 'drawing' || busy} 
+                style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
+              />
+              <button onClick={() => modifyBet(0.5)} disabled={phase === 'drawing' || busy} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
+                1/2
+              </button>
+              <button onClick={() => modifyBet(2)} disabled={phase === 'drawing' || busy} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
+                2x
+              </button>
+            </div>
+
+            {/* الصف الثاني: أزرار النسب (1/4, 1/2, 3/4, Full) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               <button onClick={() => setFractionBet(0.25)} disabled={phase === 'drawing' || busy} style={actionBtn}>1/4</button>
-              <button onClick={() => setFractionBet(0.3333)} disabled={phase === 'drawing' || busy} style={actionBtn}>1/3</button>
               <button onClick={() => setFractionBet(0.5)} disabled={phase === 'drawing' || busy} style={actionBtn}>1/2</button>
+              <button onClick={() => setFractionBet(0.75)} disabled={phase === 'drawing' || busy} style={actionBtn}>3/4</button>
               <button onClick={() => setFractionBet(1)} disabled={phase === 'drawing' || busy} style={actionBtn}>Full</button>
             </div>
           </div>
