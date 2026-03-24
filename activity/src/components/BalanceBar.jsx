@@ -3,6 +3,15 @@ import { getBalance } from '../lib/api';
 
 const MOBILE_BREAKPOINT = 820;
 
+// الدالة الذكية لاختصار الأرقام الكبيرة (M, B, T)
+function formatMoney(val) {
+  const absVal = Math.abs(val);
+  if (absVal >= 1e12) return (val / 1e12).toFixed(2) + 'T';
+  if (absVal >= 1e9) return (val / 1e9).toFixed(2) + 'B';
+  if (absVal >= 1e6) return (val / 1e6).toFixed(2) + 'M';
+  return Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function BalanceBar() {
   const [balance, setBalance] = useState(0);
   const [status, setStatus] = useState('loading');
@@ -60,8 +69,8 @@ export default function BalanceBar() {
       width: '100%', minWidth: 0
     }}>
       <div style={{ color: '#b1bad3', fontSize: isMobile ? 10 : 12, fontWeight: 700, marginBottom: 2 }}>Balance</div>
-      <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 900, color: '#00e701', lineHeight: 1 }}>
-        {status === 'loading' ? '...' : `$${Number(balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+      <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 900, color: '#00e701', lineHeight: 1, whiteSpace: 'nowrap' }}>
+        {status === 'loading' ? '...' : `$${formatMoney(balance)}`}
       </div>
     </div>
   );
