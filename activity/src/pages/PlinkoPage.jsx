@@ -52,7 +52,6 @@ function buildMultipliers(rows, risk) {
   return weights.map((weight) => Math.max(0.2, roundMultiplier(weight * scale)));
 }
 
-// حسابات ذكية لضمان عدم خروج اللعبة عن الشاشة في الجوال
 function getBoardMetrics(rows, isMobile = false) {
   const width = isMobile ? 320 : 760; 
   const xStep = width / (rows + 1);
@@ -230,28 +229,33 @@ export default function PlinkoPage() {
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
           <div style={{ marginBottom: 18 }}>
             
-            {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
+            {/* الصف الأول: مربع النص (مع التحويل للإنجليزي) + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                type="text" lang="en" dir="ltr" inputMode="decimal"
                 value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
-                style={{ ...inputStyle, marginBottom: 0, flex: 1 }} 
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                  val = val.replace(/[^0-9.]/g, '');
+                  setBet(val);
+                }}
+                disabled={isDropping}
+                style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
               />
-              <button onClick={() => modifyBet(0.5)} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
+              <button onClick={() => modifyBet(0.5)} disabled={isDropping} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
                 1/2
               </button>
-              <button onClick={() => modifyBet(2)} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
+              <button onClick={() => modifyBet(2)} disabled={isDropping} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
                 2x
               </button>
             </div>
 
             {/* الصف الثاني: أزرار النسب (1/4, 1/2, 3/4, Full) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-              <button onClick={() => setFractionBet(0.25)} style={actionBtn}>1/4</button>
-              <button onClick={() => setFractionBet(0.5)} style={actionBtn}>1/2</button>
-              <button onClick={() => setFractionBet(0.75)} style={actionBtn}>3/4</button>
-              <button onClick={() => setFractionBet(1)} style={actionBtn}>Full</button>
+              <button onClick={() => setFractionBet(0.25)} disabled={isDropping} style={actionBtn}>1/4</button>
+              <button onClick={() => setFractionBet(0.5)} disabled={isDropping} style={actionBtn}>1/2</button>
+              <button onClick={() => setFractionBet(0.75)} disabled={isDropping} style={actionBtn}>3/4</button>
+              <button onClick={() => setFractionBet(1)} disabled={isDropping} style={actionBtn}>Full</button>
             </div>
           </div>
 
