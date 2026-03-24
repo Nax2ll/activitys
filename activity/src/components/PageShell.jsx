@@ -87,54 +87,40 @@ export default function PageShell({ title, children }) {
       {/* Main Content Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         
-        {/* Top Unified Header (Desktop & Mobile) */}
+        {/* Top Header - Balance Only on Mobile */}
         <div style={{ 
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+          display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-end' : 'space-between', 
           padding: isMobile ? '12px 16px' : '20px 32px', 
           background: isMobile ? '#1a2c38' : 'transparent',
           borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
-          position: 'sticky', top: 0, zIndex: 30,
-          gap: isMobile ? 8 : 16
+          position: 'sticky', top: 0, zIndex: 30
         }}>
-          
-          {/* 1. اللعبة (يسار) */}
-          <h1 style={{ 
-            margin: 0, fontSize: isMobile ? 18 : 28, fontWeight: 900, 
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 
-          }}>
-            {title}
-          </h1>
-          
-          {/* 2. الرصيد (بالنص في الجوال، ويمين في الديسكتوب) */}
-          <div style={{ 
-            flex: isMobile ? 1 : 'none', 
-            display: 'flex', justifyContent: isMobile ? 'center' : 'flex-end',
-            width: isMobile ? 'auto' : 250,
-            minWidth: 0
-          }}>
-            <div style={{ width: '100%', maxWidth: isMobile ? 160 : '100%' }}>
-              <BalanceBar />
-            </div>
+          {!isMobile && <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900 }}>{title}</h1>}
+          <div style={{ width: isMobile ? 180 : 250 }}>
+            <BalanceBar />
           </div>
-
-          {/* 3. زر القائمة (يمين - يظهر فقط بالجوال) */}
-          {isMobile && (
-            <button 
-              onClick={() => setMenuOpen(true)} 
-              style={{ 
-                background: '#233847', border: '1px solid rgba(255,255,255,0.1)', 
-                color: 'white', fontSize: 16, cursor: 'pointer', 
-                padding: '8px 12px', borderRadius: 12, flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}
-            >
-              ☰
-            </button>
-          )}
         </div>
 
         {/* Page Content */}
         <div style={{ padding: isMobile ? '16px' : '0 32px 32px', flex: 1, maxWidth: 1400, margin: '0 auto', width: '100%' }}>
+          
+          {/* Mobile Title & Menu Button */}
+          {isMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900 }}>{title}</h1>
+              <button 
+                onClick={() => setMenuOpen(true)} 
+                style={{ 
+                  background: '#233847', border: '1px solid rgba(255,255,255,0.1)', 
+                  color: 'white', fontSize: 14, fontWeight: 800, cursor: 'pointer', 
+                  padding: '8px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 
+                }}
+              >
+                <span style={{ fontSize: 18 }}>☰</span> Menu
+              </button>
+            </div>
+          )}
+          
           {children}
         </div>
       </div>
