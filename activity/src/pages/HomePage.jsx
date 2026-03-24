@@ -27,12 +27,13 @@ function formatGameName(key) {
   return names[key] || key || 'Unknown Game';
 }
 
-// دالة جديدة لاختصار الأرقام الفلكية وتجنب خروجها عن الشاشة
+// دالة تنسيق الأرباح (عادي للمبالغ الصغيرة، وبحروف M,B,T للمبالغ الضخمة)
 function formatMoney(val) {
   const absVal = Math.abs(val);
+  if (absVal >= 1e12) return (val / 1e12).toFixed(2) + 'T';
   if (absVal >= 1e9) return (val / 1e9).toFixed(2) + 'B';
   if (absVal >= 1e6) return (val / 1e6).toFixed(2) + 'M';
-  return Number(val).toLocaleString();
+  return Number(val).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 export default function HomePage() {
@@ -81,7 +82,6 @@ export default function HomePage() {
 
   return (
     <PageShell title="Casino">
-      {/* استخدمنا minmax(0, 1fr) هنا لمنع امتداد الـ Grid خارج الشاشة */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1.3fr minmax(0, 1fr)', gap: isMobile ? 16 : 24, marginBottom: isMobile ? 16 : 24 }}>
         
         {/* Featured Section */}
