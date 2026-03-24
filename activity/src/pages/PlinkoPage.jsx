@@ -52,13 +52,14 @@ function buildMultipliers(rows, risk) {
   return weights.map((weight) => Math.max(0.2, roundMultiplier(weight * scale)));
 }
 
+// حسابات ذكية لضمان عدم خروج اللعبة عن الشاشة في الجوال
 function getBoardMetrics(rows, isMobile = false) {
-  const width = isMobile ? 420 : 760;
-  const xStep = isMobile ? Math.min(24, 330 / (rows + 2)) : Math.min(44, 620 / (rows + 2));
-  const rowSpacing = isMobile ? (rows >= 14 ? 18 : 21) : (rows >= 14 ? 30 : 34);
-  const topY = isMobile ? 42 : 70;
-  const bottomY = topY + rows * rowSpacing + (isMobile ? 38 : 64);
-  const height = bottomY + (isMobile ? 52 : 78);
+  const width = isMobile ? 320 : 760; 
+  const xStep = width / (rows + 1);
+  const rowSpacing = isMobile ? (rows >= 14 ? 16 : 20) : (rows >= 14 ? 30 : 34);
+  const topY = isMobile ? 40 : 70;
+  const bottomY = topY + rows * rowSpacing + (isMobile ? 30 : 64);
+  const height = bottomY + (isMobile ? 40 : 78);
   const centerX = width / 2;
   return { width, height, xStep, rowSpacing, topY, bottomY, centerX };
 }
@@ -209,7 +210,7 @@ export default function PlinkoPage() {
     <PageShell title="Plinko">
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(330px, 390px) minmax(0, 1fr)', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
         
-        {/* Controls Section */}
+        {/* Controls */}
         <div style={{ background: '#1a2c38', borderRadius: isMobile ? 20 : 24, padding: isMobile ? 16 : 20, border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 18px 40px rgba(0,0,0,0.18)', minWidth: 0, order: isMobile ? 2 : 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 12 }}>
             <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 900 }}>Manual</div>
@@ -250,7 +251,6 @@ export default function PlinkoPage() {
             <div style={statRow}><span style={statLabel}>Best possible payout</span><span style={statValue}>${potentialBest}</span></div>
           </div>
 
-          {/* History */}
           <div style={{ marginTop: 18 }}>
             <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Last Results</div>
             <div style={{ display: 'grid', gap: 10 }}>
@@ -275,12 +275,17 @@ export default function PlinkoPage() {
             {buckets.map((bucket, index) => {
               const multiplier = multipliers[index];
               const styleSet = getBucketStyle(multiplier, activeBucket === index);
-              return <div key={index} style={{ position: 'absolute', left: bucket.left, top: bucket.top, transform: 'translate(-50%, 0)', width: isMobile ? Math.max(18, 255 / (rows + 1)) : Math.max(30, 500 / (rows + 1)), minWidth: isMobile ? 18 : 30, height: isMobile ? 34 : 68, borderRadius: isMobile ? 8 : 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: isMobile ? (rows >= 14 ? 7 : 8) : rows >= 14 ? 11 : 12, transition: 'all 0.16s ease', ...styleSet }}>x{multiplier}</div>;
+              const bucketWidth = isMobile ? (320 / (rows + 1)) - 2 : Math.max(30, 500 / (rows + 1));
+              const fontSize = isMobile ? (rows >= 14 ? 8 : rows >= 12 ? 10 : 11) : (rows >= 14 ? 11 : 12);
+              
+              return (
+                <div key={index} style={{ position: 'absolute', left: bucket.left, top: bucket.top, transform: 'translate(-50%, 0)', width: bucketWidth, minWidth: 0, height: isMobile ? 30 : 68, borderRadius: isMobile ? 6 : 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: fontSize, transition: 'all 0.16s ease', ...styleSet }}>
+                  x{multiplier}
+                </div>
+              );
             })}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${multipliers.length}, 1fr)`, gap: isMobile ? 4 : 8, marginTop: 18 }}>
-            {multipliers.map((multiplier, index) => <div key={`${multiplier}-${index}`} style={{ background: activeBucket === index ? '#233f2e' : '#132634', border: '1px solid rgba(255,255,255,0.05)', borderRadius: isMobile ? 8 : 12, padding: isMobile ? '6px 2px' : '10px 6px', textAlign: 'center', fontWeight: 800, color: activeBucket === index ? '#7df9a6' : 'white', fontSize: isMobile ? 9 : 13 }}>x{multiplier}</div>)}
-          </div>
+          {/* تم حذف قسم الـ Multipliers Grid السفلي بناءً على طلبك */}
         </div>
       </div>
     </PageShell>
