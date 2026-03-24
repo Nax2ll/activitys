@@ -79,7 +79,6 @@ export default function DragonTowerPage() {
     handleResize();
     window.addEventListener('resize', handleResize);
 
-    // جلب الرصيد
     async function fetchBalance() {
       try {
         const res = await getBalance();
@@ -251,12 +250,16 @@ export default function DragonTowerPage() {
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
           <div style={{ marginBottom: 18 }}>
             
-            {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
+            {/* الصف الأول: مربع النص (مع تحويل تلقائي للإنجليزي) + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                type="text" lang="en" dir="ltr" inputMode="decimal"
                 value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                  val = val.replace(/[^0-9.]/g, '');
+                  setBet(val);
+                }} 
                 disabled={phase === 'playing' || busy} 
                 style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none' }} 
               />
@@ -268,7 +271,7 @@ export default function DragonTowerPage() {
               </button>
             </div>
 
-            {/* الصف الثاني: أزرار النسب من الرصيد الكلي */}
+            {/* الصف الثاني: أزرار النسب (1/4, 1/2, 3/4, Full) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               <button onClick={() => setFractionBet(0.25)} disabled={phase === 'playing' || busy} style={actionBtn}>1/4</button>
               <button onClick={() => setFractionBet(0.5)} disabled={phase === 'playing' || busy} style={actionBtn}>1/2</button>
@@ -303,7 +306,6 @@ export default function DragonTowerPage() {
             <div style={statRow}><span style={statLabel}>Current payout</span><span style={statValue}>${currentPayout}</span></div>
           </div>
 
-          {/* History */}
           <div style={{ marginTop: 18 }}>
             <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Last Results</div>
             <div style={{ display: 'grid', gap: 10 }}>
@@ -320,7 +322,7 @@ export default function DragonTowerPage() {
           </div>
         </div>
 
-        {/* Game Board */}
+        {/* Game Board Section */}
         <div style={{ background: '#1a2c38', borderRadius: isMobile ? 20 : 24, padding: isMobile ? 16 : 24, border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 18px 40px rgba(0,0,0,0.18)', minWidth: 0, order: isMobile ? 1 : 2 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
             <div style={{ background: 'radial-gradient(circle at top, rgba(68,98,121,0.38), rgba(15,33,46,0.98) 65%)', borderRadius: 22, padding: isMobile ? '16px 10px' : '30px 20px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: isMobile ? 'auto' : 700, width: '100%', maxWidth: isMobile ? '100%' : '440px' }}>
