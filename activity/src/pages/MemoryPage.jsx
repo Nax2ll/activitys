@@ -191,7 +191,6 @@ export default function MemoryPage() {
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
           <div style={{ marginBottom: 18 }}>
             
-            {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
                 type="text" lang="en" dir="ltr" inputMode="decimal"
@@ -212,7 +211,6 @@ export default function MemoryPage() {
               </button>
             </div>
 
-            {/* الصف الثاني: أزرار النسب (1/4, 1/2, 3/4, Full) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               <button onClick={() => setFractionBet(0.25)} disabled={phase !== 'idle' && phase !== 'finished'} style={actionBtn}>1/4</button>
               <button onClick={() => setFractionBet(0.5)} disabled={phase !== 'idle' && phase !== 'finished'} style={actionBtn}>1/2</button>
@@ -283,12 +281,6 @@ export default function MemoryPage() {
                     </div>
                   );
                 })}
-              </div>
-            )}
-
-            {phase === 'memorize' && (
-              <div style={{ position: 'absolute', top: 20, background: 'rgba(0,0,0,0.7)', padding: '10px 30px', borderRadius: 50, color: '#ff9800', fontWeight: 900, fontSize: isMobile ? 18 : 24, border: '2px solid #ff9800', backdropFilter: 'blur(5px)', zIndex: 10 }}>
-                MEMORIZE: {timeLeft}s
               </div>
             )}
           </div>
