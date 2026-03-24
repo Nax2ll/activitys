@@ -194,9 +194,13 @@ export default function MemoryPage() {
             {/* الصف الأول: مربع النص + أزرار الضرب والقسمة */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input 
-                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                type="text" lang="en" dir="ltr" inputMode="decimal"
                 value={bet} 
-                onChange={(e) => setBet(e.target.value)} 
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+                  val = val.replace(/[^0-9.]/g, '');
+                  setBet(val);
+                }} 
                 disabled={phase !== 'idle' && phase !== 'finished'} 
                 style={{ ...inputStyle, marginBottom: 0, flex: 1, outline: 'none', opacity: (phase !== 'idle' && phase !== 'finished') ? 0.6 : 1 }} 
               />
@@ -303,7 +307,7 @@ function SummaryItem({ label, value, accent = 'white', isMobile = false }) {
   );
 }
 
-const inputStyle = { width: '100%', borderRadius: 14, background: '#0f212e', border: '1px solid rgba(255,255,255,0.1)', padding: '14px 16px', color: 'white', outline: 'none' };
+const inputStyle = { width: '100%', borderRadius: 14, background: '#0f212e', border: '1px solid rgba(255,255,255,0.1)', padding: '14px 16px', color: 'white' };
 const actionBtn = { background: '#233847', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 0', cursor: 'pointer', fontWeight: 800, fontSize: 13, textAlign: 'center' };
 const primaryBtn = { width: '100%', borderRadius: 14, background: '#00e701', color: 'black', fontWeight: 900, padding: '15px 16px', border: 'none', cursor: 'pointer', marginTop: 18, transition: 'transform 0.05s ease' };
 const statRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 };
