@@ -72,6 +72,16 @@ export default function DicePage() {
   const payout = useMemo(() => Math.floor((Number(bet) || 0) * multiplier), [bet, multiplier]);
   const rollRuleText = useMemo(() => mode === 'under' ? `Roll under ${safeTarget}` : `Roll over ${safeTarget}`, [mode, safeTarget]);
 
+  // دالة ضرب أو قسمة الرهان الحالي (x2, /2)
+  function modifyBet(multiplier) {
+    const current = Number(bet) || 0;
+    let newBet = Math.floor(current * multiplier);
+    if (newBet < 1) newBet = 1;
+    if (newBet > userBalance && userBalance > 0) newBet = Math.floor(userBalance);
+    setBet(String(newBet));
+  }
+
+  // دالة تحديد نسبة الرهان من الرصيد الكلي
   function setFractionBet(fraction) {
     const newBet = Math.floor(userBalance * fraction);
     setBet(String(newBet > 0 ? newBet : 1));
@@ -139,11 +149,29 @@ export default function DicePage() {
 
           <div style={{ color: '#b1bad3', fontSize: 14, marginBottom: 8 }}>Bet Amount</div>
           <div style={{ marginBottom: 18 }}>
-            <input type="number" lang="en" dir="ltr" inputMode="decimal" min="1" value={bet} onChange={(e) => setBet(e.target.value)} disabled={phase === 'rolling' || busy} style={{ ...inputStyle, marginBottom: 8 }} />
+            
+            {/* الصف الأول: مربع النص + الأزرار بجانبه */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input 
+                type="number" lang="en" dir="ltr" inputMode="decimal" min="1" 
+                value={bet} 
+                onChange={(e) => setBet(e.target.value)} 
+                disabled={phase === 'rolling' || busy} 
+                style={{ ...inputStyle, marginBottom: 0, flex: 1 }} 
+              />
+              <button onClick={() => modifyBet(0.5)} disabled={phase === 'rolling' || busy} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
+                1/2
+              </button>
+              <button onClick={() => modifyBet(2)} disabled={phase === 'rolling' || busy} style={{ ...actionBtn, padding: '0 16px', fontSize: 15 }}>
+                2x
+              </button>
+            </div>
+
+            {/* الصف الثاني: أزرار النسب (1/4, 1/2, 3/4, Full) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               <button onClick={() => setFractionBet(0.25)} disabled={phase === 'rolling' || busy} style={actionBtn}>1/4</button>
-              <button onClick={() => setFractionBet(0.3333)} disabled={phase === 'rolling' || busy} style={actionBtn}>1/3</button>
               <button onClick={() => setFractionBet(0.5)} disabled={phase === 'rolling' || busy} style={actionBtn}>1/2</button>
+              <button onClick={() => setFractionBet(0.75)} disabled={phase === 'rolling' || busy} style={actionBtn}>3/4</button>
               <button onClick={() => setFractionBet(1)} disabled={phase === 'rolling' || busy} style={actionBtn}>Full</button>
             </div>
           </div>
@@ -239,7 +267,7 @@ function SummaryItem({ label, value, accent = 'white', isMobile = false }) {
   );
 }
 
-const inputStyle = { width: '100%', borderRadius: 14, background: '#0f212e', border: '1px solid rgba(255,255,255,0.1)', padding: '14px 16px', color: 'white', fontWeight: 'bold' };
+const inputStyle = { width: '100%', borderRadius: 14, background: '#0f212e', border: '1px solid rgba(255,255,255,0.1)', padding: '14px 16px', color: 'white', fontWeight: 'bold', outline: 'none' };
 const actionBtn = { background: '#233847', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 0', cursor: 'pointer', fontWeight: 800, fontSize: 13, textAlign: 'center' };
 const normalBtn = { background: '#233847', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '12px 14px', cursor: 'pointer', fontWeight: 800 };
 const activeBtn = { ...normalBtn, background: '#2f4553', boxShadow: '0 10px 20px rgba(0,0,0,0.14)' };
